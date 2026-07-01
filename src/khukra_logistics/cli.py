@@ -99,6 +99,26 @@ def cmd_explore(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_evaluate(args: argparse.Namespace) -> int:
+    try:
+        _print_json(
+            get_disruption_service().evaluate(
+                args.signals,
+                args.horizon,
+                persist=not args.no_persist,
+            )
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_evaluation_history(args: argparse.Namespace) -> int:
+    _print_json(get_disruption_service().evaluation_history(args.days))
+    return 0
+
+
 def cmd_refresh_news(_: argparse.Namespace) -> int:
     _print_json(get_disruption_service().refresh_news())
     return 0
@@ -143,6 +163,19 @@ def main(argv: list[str] | None = None) -> int:
     explore_parser = sub.add_parser("explore", help="Advanced exploratory analysis (PCA, MI, Granger, …)")
     explore_parser.add_argument("--signals", nargs="*", default=None)
     explore_parser.set_defaults(func=cmd_explore)
+
+    evaluate_parser = sub.add_parser(
+        "evaluate",
+        help="Daily forecast-precision scorecard on hybrid panel",
+    )
+    evaluate_parser.add_argument("--signals", nargs="*", default=None)
+    evaluate_parser.add_argument("--horizon", type=int, default=30)
+    evaluate_parser.add_argument("--no-persist", action="store_true")
+    evaluate_parser.set_defaults(func=cmd_evaluate)
+
+    history_parser = sub.add_parser("evaluation", help="Show daily evaluation history")
+    history_parser.add_argument("--days", type=int, default=30)
+    history_parser.set_defaults(func=cmd_evaluation_history)
 
     sub.add_parser("refresh-news", help="Poll RSS feeds and update news_stress signal").set_defaults(
         func=cmd_refresh_news

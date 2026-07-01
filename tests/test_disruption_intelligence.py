@@ -59,7 +59,7 @@ def test_load_panel_merges_tz_aware_and_naive_dates(tmp_path, monkeypatch):
 
 def test_catalog_lists_signals(service):
     catalog = service.catalog()
-    assert catalog["signal_count"] >= 8
+    assert catalog["signal_count"] >= 9
     assert "financial_stress" in catalog["categories"]
 
 
@@ -151,7 +151,14 @@ def test_refresh_with_mocked_adapters(service, monkeypatch):
         "khukra_logistics.disruption.service.yahoo.fetch_daily_series",
         fake_yahoo,
     )
-    result = service.refresh(["vix", "shipping_proxy"], years=2)
+    def fake_basket(start=None, end=None):
+        return _synthetic_signal(100, seed=3)
+
+    monkeypatch.setattr(
+        "khukra_logistics.disruption.service.yahoo.fetch_shipping_basket",
+        fake_basket,
+    )
+    result = service.refresh(["vix", "shipping_basket"], years=2)
     assert result["signals_refreshed"] == 2
     status = service.status()
     assert status["covered_count"] == 2

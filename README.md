@@ -78,17 +78,16 @@ KHUKRA_LOGISTICS_UI_PORT=3020
 ## Primary workflow
 
 ```
-catalog → refresh → discover → explore → forecast
-         ↘ refresh-news (RSS + NLP)
+catalog → refresh (hybrid ingest) → evaluate (daily precision) → forecast → discover/explore (diagnose)
+         ↘ refresh-news (RSS + NLP) — also runs daily evaluation
 ```
 
-| Step | CLI | UI button |
-|------|-----|-----------|
-| Ingest macro | `khukra-logistics refresh --years 10` | Refresh |
-| Ingest news | `khukra-logistics refresh-news` | Poll RSS feeds |
-| Insights | `khukra-logistics discover` | Discover |
-| Advanced stats | `khukra-logistics explore` | Explore |
+| Step | CLI | UI |
+|------|-----|-----|
+| Ingest macro + news | `khukra-logistics refresh --years 10` | Refresh |
+| **Daily precision** | `khukra-logistics evaluate` | Forecast precision card |
 | Forecast | `khukra-logistics forecast --horizon 30` | Forecast |
+| Diagnose panel | `khukra-logistics discover` / `explore` | Discover / Explore |
 
 ### Data sources
 
@@ -98,7 +97,7 @@ catalog → refresh → discover → explore → forecast
 
 ### Signals (8)
 
-`vix`, `oil_wti`, `usd_trade_weighted`, `hy_oas`, `shipping_proxy`, `eurusd`, `news_stress`, `news_sentiment`
+`vix`, `oil_wti`, `usd_trade_weighted`, `hy_oas`, `gscpi`, `shipping_basket`, `eurusd`, `news_stress`, `news_sentiment`
 
 ## API endpoints
 
@@ -111,7 +110,9 @@ catalog → refresh → discover → explore → forecast
 | `POST /api/disruption/refresh-news` | RSS poll + NLP |
 | `POST /api/disruption/discover` | Bayesian insights |
 | `POST /api/disruption/explore` | 7 advanced methods |
-| `POST /api/disruption/forecast` | Composite forecast |
+| `POST /api/disruption/forecast` | Composite forecast + evaluation |
+| `POST /api/disruption/evaluate` | Daily precision scorecard |
+| `GET /api/disruption/evaluation` | Evaluation history |
 | `POST /api/disruption/panel` | Chart panel data |
 
 ## Troubleshooting

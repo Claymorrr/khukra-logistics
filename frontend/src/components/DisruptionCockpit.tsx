@@ -30,6 +30,8 @@ import {
   type Insight,
 } from "@/lib/api/disruption";
 import { ChartDashboard } from "@/components/ChartDashboard";
+import { EvaluationScorecard } from "@/components/EvaluationScorecard";
+import { ProductionModelChart } from "@/components/ProductionModelChart";
 import { FeatureGuide } from "@/components/FeatureGuide";
 import { NewsPanel } from "@/components/NewsPanel";
 
@@ -51,6 +53,7 @@ export function DisruptionCockpit() {
   const [error, setError] = useState<string | null>(null);
   const [showInsights, setShowInsights] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
+  const [evalRefreshKey, setEvalRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,6 +112,7 @@ export function DisruptionCockpit() {
         horizon_days: 30,
       });
       setForecast(result);
+      setEvalRefreshKey((k) => k + 1);
       if (!discovery) {
         setDiscovery({
           profile: { signals: [], total: 0 },
@@ -134,6 +138,7 @@ export function DisruptionCockpit() {
         });
         await load();
         setPanelVersion((v) => v + 1);
+        setEvalRefreshKey((k) => k + 1);
         await discoverSignals({
           signal_ids: all ? undefined : selected.length ? selected : undefined,
         }).then((r) => {
@@ -220,6 +225,9 @@ export function DisruptionCockpit() {
         </div>
       </header>
 
+      <EvaluationScorecard refreshKey={evalRefreshKey} />
+      <ProductionModelChart refreshKey={evalRefreshKey} />
+
       {error && (
         <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">
           {error}
@@ -229,6 +237,7 @@ export function DisruptionCockpit() {
       <NewsPanel
         onRefreshed={() => {
           setPanelVersion((v) => v + 1);
+          setEvalRefreshKey((k) => k + 1);
           void load();
         }}
       />

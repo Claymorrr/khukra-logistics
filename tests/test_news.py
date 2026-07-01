@@ -63,9 +63,9 @@ def test_ingest_filters_irrelevant_headlines(tmp_path, monkeypatch):
 
     monkeypatch.setattr("khukra_logistics.disruption.news.service.fetch_feed", fake_fetch)
     result = ingest_news_feeds()
-    assert result["entries_new"] == 5
-    assert result["entries_rejected"] == 5
-    assert result["headlines_total"] == 5
+    assert result["entries_new"] == 6
+    assert result["entries_rejected"] == 6
+    assert result["headlines_total"] == 6
 
 
 def test_ingest_news_with_mocked_feeds(tmp_path, monkeypatch):

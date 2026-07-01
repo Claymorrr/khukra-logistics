@@ -47,6 +47,12 @@ class ForecastRequest(BaseModel):
     horizon_days: int = Field(30, ge=7, le=180)
 
 
+class EvaluateRequest(BaseModel):
+    signal_ids: list[str] | None = None
+    horizon_days: int = Field(30, ge=7, le=180)
+    persist: bool = True
+
+
 class PanelRequest(BaseModel):
     signal_ids: list[str] | None = None
     tail_days: int | None = Field(504, ge=30, le=5000)
@@ -65,6 +71,7 @@ def health() -> dict[str, Any]:
             "refresh",
             "discover",
             "forecast",
+            "evaluate",
             "panel",
             "explore",
             "news",
@@ -123,6 +130,23 @@ def disruption_forecast(body: ForecastRequest) -> dict[str, Any]:
         return get_disruption_service().forecast(body.signal_ids, body.horizon_days)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.post("/evaluate")
+def disruption_evaluate(body: EvaluateRequest) -> dict[str, Any]:
+    try:
+        return get_disruption_service().evaluate(
+            body.signal_ids,
+            body.horizon_days,
+            body.persist,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.get("/evaluation")
+def disruption_evaluation_history(days: int = 30) -> dict[str, Any]:
+    return get_disruption_service().evaluation_history(days=min(max(days, 1), 365))
 
 
 @disruption.post("/panel")

@@ -1,43 +1,63 @@
 # Khukra Logistics Vision
 
-Khukra Logistics is a **global disruption forecast and risk analysis** platform.
+Khukra Logistics is a **hybrid disruption forecast** platform.
 
-## Core principle
+## North star
 
-> Pull real-world disruption signals, reason about them statistically, and discover what the data implies before operational decisions.
+> **Forecast precision** — measured daily. Is the composite forecast right?
+
+Everything else exists to improve that score:
+
+| Layer | Role |
+|-------|------|
+| **Hybrid ingest** | Macro (FRED) + market (Yahoo) + news (RSS/NLP) |
+| **Discover** | Find lead-lag and structure to tune the panel |
+| **Explore** | Test which signals add predictive density |
+| **NLP** | Improve news channel relevance and leading power |
+| **Simulation** | Stress-test when live data is sparse |
+
+## Hybrid data model
+
+```
+macro (FRED)     ─┐
+market (Yahoo)   ─┼─► equal-weight z-score composite ─► forecast ─► daily precision score
+news (RSS/NLP)   ─┘
+```
+
+Three channels, one panel, one measurable outcome.
 
 ## Primary workflow
 
 ```
-catalog signals → refresh (ingest) → discover (statistics) → forecast (composite risk)
+refresh (hybrid ingest) → evaluate (daily precision) → forecast → discover/explore (diagnose)
 ```
 
-### 1. Ingest
+### 1. Ingest (hybrid)
 
-Pull public macro and logistics-proxy series into a local cache:
+- **Macro** — VIX, WTI, USD, HY OAS (FRED)
+- **Market** — shipping proxy, EUR/USD (Yahoo)
+- **News** — judgment-filtered RSS + VADER (`news_stress`, `news_sentiment`)
 
-- **FRED** — VIX, WTI oil, USD trade-weighted index, HY credit spreads
-- **Yahoo Finance** — shipping proxy (ZIM), EUR/USD
+### 2. Evaluate (daily)
 
-Cached under `data/disruption_cache/` as Parquet.
+Walk-forward 1-step MAE on the composite, direction hit rate, channel ablation (macro/market/news lift), precision score 0–100, verdict (`on_track` | `improving` | `needs_work`).
 
-### 2. Discover (statistical reasoning)
+Persisted under `data/disruption_cache/evaluation/evaluation_YYYY-MM-DD.json`.
 
-Automated scans over the aligned panel:
-
-- **Correlation** — Pearson & Spearman with significance testing
-- **Regime shifts** — rolling z-score flags (|z| ≥ 1.5)
-- **Lead-lag** — return-based cross-correlation at ±20 days
-- **Composite risk index** — equal-weight z-score across signals
+Runs automatically after **Refresh** and **Poll RSS**. CLI: `khukra-logistics evaluate`.
 
 ### 3. Forecast
 
-Holt linear forecast on the composite disruption index with holdout MAE/RMSE.
+Bayesian linear-trend projection with credible bands — useful only if daily evaluation says the panel is on track.
+
+### 4. Discover & Explore (servants, not goals)
+
+Correlation, lead-lag, regimes, MI, PCA, predictive screen — use these to answer: *which hybrid channel or signal improves precision?*
 
 ## Simulation models (secondary)
 
-Synthetic disruption, quality, and resilience models remain available for scenario stress-testing when live data is sparse.
+Synthetic disruption, quality, and resilience models for scenario stress when empirical coverage is thin.
 
 ## Relationship to Khukra
 
-Separate repository from Khukra (finance). Shared patterns: CLI, API, local cache, reproducible artifacts.
+Separate repository from [Khukra](https://github.com/Claymorrr/khukra) (finance). Shared patterns: CLI, API, local cache, reproducible artifacts.

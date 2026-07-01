@@ -14,9 +14,9 @@ from khukra_logistics.disruption.bayesian import (
     bayesian_regime_prob,
     composite_posterior,
 )
+from khukra_logistics.disruption.forecasting import forecast_horizon, select_best_method
+from khukra_logistics.disruption.hybrid_composite import COMPOSITE_SMOOTH_DAYS, SPARSE_SIGNALS, build_hybrid_composite
 from khukra_logistics.simulation.primitives import forecast_holt_linear
-
-SPARSE_SIGNALS = frozenset({"news_stress", "news_sentiment"})
 
 
 def _returns(series: pd.Series) -> pd.Series:
@@ -218,31 +218,23 @@ def discover_insights(panel: pd.DataFrame, max_pairs: int = 15) -> dict[str, Any
 
 
 def composite_risk_index(panel: pd.DataFrame) -> dict[str, Any]:
-    """Equal-weight z-score composite across available signals with Bayesian posterior."""
+    """Weighted hybrid z-score composite (macro / market / news) with Bayesian posterior."""
     signal_cols = [c for c in panel.columns if c != "date"]
     if not signal_cols:
         raise ValueError("No cached signals available. Run refresh first.")
 
-    z_frames: list[pd.Series] = []
-    for col in signal_cols:
-        s = panel[col].dropna()
-        if len(s) < 30:
-            continue
-        z = (panel[col] - panel[col].rolling(60, min_periods=20).mean()) / panel[col].rolling(
-            60, min_periods=20
-        ).std()
-        z_frames.append(z.rename(col))
-
-    if not z_frames:
+    clean, hybrid_meta = build_hybrid_composite(panel, signal_cols, smooth_days=0)
+    if len(clean) < 30:
         raise ValueError("Insufficient history to compute composite risk index.")
 
-    z_panel = pd.concat(z_frames, axis=1)
-    composite = z_panel.mean(axis=1, skipna=True)
-    clean = composite.dropna()
     current = float(clean.iloc[-1])
     p90 = float(np.percentile(clean, 90))
     p10 = float(np.percentile(clean, 10))
-    post = composite_posterior(current, len(z_frames), int(len(clean)))
+    post = composite_posterior(
+        current,
+        sum(hybrid_meta.get("signals_per_channel", {}).values()) or 1,
+        int(len(clean)),
+    )
 
     return {
         "current": round(current, 4),
@@ -252,8 +244,9 @@ def composite_risk_index(panel: pd.DataFrame) -> dict[str, Any]:
         "p90": round(p90, 4),
         "p10": round(p10, 4),
         "percentile_rank": round(float(stats.percentileofscore(clean, current)), 2),
+        "hybrid": hybrid_meta,
         "interpretation": (
-            f"Composite disruption index at {current:.2f}σ "
+            f"Hybrid disruption index at {current:.2f}σ "
             f"(95% credible interval [{post['ci_low']:.2f}, {post['ci_high']:.2f}]). "
             f"P(elevated >1.5σ | data)={post['prob_elevated']:.0%}. "
             f"Historical percentile {stats.percentileofscore(clean, current):.0f}."
@@ -266,33 +259,52 @@ def composite_risk_index(panel: pd.DataFrame) -> dict[str, Any]:
 
 
 def forecast_composite(panel: pd.DataFrame, horizon: int = 30) -> dict[str, Any]:
-    """Bayesian linear-trend forecast on composite risk index with posterior predictive bands."""
+    """Auto-selected 1-step method projected over horizon with posterior bands."""
     composite = composite_risk_index(panel)
     y = np.array(composite["series"]["composite_z"], dtype=float)
     if len(y) < 40:
         raise ValueError("Need at least 40 observations for forecast.")
 
+    # Smoothed series for forecasting (reduces daily noise)
+    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=COMPOSITE_SMOOTH_DAYS)
+    y_fore = smooth.values if len(smooth) >= 40 else y
+
+    best_method, method_scores = select_best_method(y_fore)
+    proj = forecast_horizon(y_fore, horizon, best_method)
+
+    prod_dates = panel.loc[smooth.index, "date"]
+    production_series = {
+        "dates": pd.to_datetime(prod_dates).dt.strftime("%Y-%m-%d").tolist(),
+        "values": [float(v) for v in smooth.tolist()],
+    }
+
     bayes = bayesian_linear_forecast(y, horizon, level=0.95)
-    # Holt holdout benchmark for comparison
     train_n = max(20, int(len(y) * 0.75))
     y_train = y[:train_n]
     y_hold = y[train_n:]
     hold_forecast, _, _ = forecast_holt_linear(y_train, len(y_hold))
     mae_holt = float(np.mean(np.abs(y_hold - hold_forecast[: len(y_hold)]))) if len(y_hold) else 0.0
+    best_mae = method_scores[best_method]["walk_forward_mae"]
 
     return {
         "horizon_days": horizon,
-        "forecast_mae": round(bayes["holdout_mae"], 4),
+        "selected_method": best_method,
+        "method_scores": method_scores,
+        "forecast_mae": round(best_mae, 4),
         "forecast_rmse": round(bayes["holdout_rmse"], 4),
         "forecast_mae_holt": round(mae_holt, 4),
-        "credible_level": bayes["credible_level"],
-        "forecast": bayes["forecast"],
-        "forecast_lower": bayes["forecast_lower"],
-        "forecast_upper": bayes["forecast_upper"],
+        "credible_level": 0.95,
+        "forecast": proj["forecast"],
+        "forecast_lower": proj["forecast_lower"],
+        "forecast_upper": proj["forecast_upper"],
         "current_composite_z": composite["current"],
+        "smooth_days": hybrid_meta.get("smooth_days", COMPOSITE_SMOOTH_DAYS),
+        "production_series": production_series,
+        "hybrid_mode": hybrid_meta.get("mode"),
+        "channel_weights": composite.get("hybrid", {}).get("channel_weights", {}),
         "interpretation": (
-            f"Bayesian linear-trend forecast ({bayes['credible_level']:.0%} posterior predictive band) "
-            f"over {horizon} steps; holdout MAE={bayes['holdout_mae']:.3f} "
-            f"(Holt benchmark {mae_holt:.3f})."
+            f"Hybrid composite forecast via {best_method} "
+            f"(walk-forward MAE={best_mae:.3f} on 2y tail; Holt holdout {mae_holt:.3f}). "
+            f"Channel weights: {composite.get('hybrid', {}).get('channel_weights', {})}."
         ),
     }

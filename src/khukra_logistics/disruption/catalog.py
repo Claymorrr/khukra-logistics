@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SourceKind = Literal["fred", "yahoo", "news"]
+SourceKind = Literal["fred", "yahoo", "yahoo_basket", "gscpi", "news"]
+HybridChannel = Literal["macro", "market", "news"]
 
 
 @dataclass(frozen=True)
@@ -53,12 +54,20 @@ DISRUPTION_SIGNALS: tuple[DisruptionSignal, ...] = (
         "Credit stress — funding and supplier distress",
     ),
     DisruptionSignal(
-        "shipping_proxy",
-        "Shipping equities proxy (ZIM)",
+        "gscpi",
+        "Global Supply Chain Pressure Index",
         "logistics",
-        "yahoo",
-        "ZIM",
-        "Container shipping sentiment proxy",
+        "gscpi",
+        "GSCPI",
+        "NY Fed composite of transport cost, delivery times, and backlogs",
+    ),
+    DisruptionSignal(
+        "shipping_basket",
+        "Shipping equities basket (ZIM / Hapag / Maersk)",
+        "logistics",
+        "yahoo_basket",
+        "ZIM,HLAG.DE,MAERSK-B.CO",
+        "Equal-weight liner shipping sentiment — broader than single-name proxy",
     ),
     DisruptionSignal(
         "eurusd",
@@ -99,3 +108,16 @@ def get_signal(signal_id: str) -> DisruptionSignal | None:
         if signal.signal_id == key:
             return signal
     return None
+
+
+def hybrid_channel(signal: DisruptionSignal) -> HybridChannel:
+    """Hybrid data layer: macro (FRED), market (Yahoo), news (RSS/NLP)."""
+    if signal.source == "news":
+        return "news"
+    if signal.source in ("yahoo", "yahoo_basket"):
+        return "market"
+    return "macro"
+
+
+def list_hybrid_channels() -> list[HybridChannel]:
+    return ["macro", "market", "news"]

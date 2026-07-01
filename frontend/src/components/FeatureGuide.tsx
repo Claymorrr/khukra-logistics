@@ -39,11 +39,17 @@ const SIGNAL_GUIDE: Record<
       "Tighter credit can force smaller 3PLs and suppliers to reduce capacity or extend lead times before macro headlines catch up.",
     sourceNote: "FRED series BAMLH0A0HYM2 — ICE BofA US High Yield OAS.",
   },
-  shipping_proxy: {
-    why: "Container shipping equities (ZIM) reflect market expectations for freight rates, utilization, and liner profitability.",
+  shipping_basket: {
+    why: "Equal-weight basket of ZIM, Hapag-Lloyd, and Maersk-B tracks liner equity sentiment more broadly than a single name.",
     logisticsLink:
-      "Useful logistics-specific sentiment proxy when macro indices are calm but spot rates or port congestion are shifting.",
-    sourceNote: "Yahoo Finance ticker ZIM — daily adjusted close.",
+      "Captures market expectations for freight rates, utilization, and carrier profitability across major container lines.",
+    sourceNote: "Yahoo Finance — ZIM, HLAG.DE, MAERSK-B.CO daily close, equal-weight average.",
+  },
+  gscpi: {
+    why: "NY Fed Global Supply Chain Pressure Index combines transport costs, delivery times, and backlogs into one macro logistics stress gauge.",
+    logisticsLink:
+      "Rising GSCPI precedes inventory build-ups, longer lead times, and spot-rate pressure — a direct supply-chain disruption read.",
+    sourceNote: "NY Fed GSCPI CSV — monthly latest vintage, forward-filled to business days.",
   },
   eurusd: {
     why: "EUR/USD captures European trade corridor FX stress and transatlantic relative growth expectations.",

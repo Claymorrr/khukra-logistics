@@ -10,10 +10,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from khukra_logistics.disruption.adapters import fred, yahoo
+from khukra_logistics.disruption.adapters import fred, gscpi, yahoo
 from khukra_logistics.disruption.cache import load_panel, repair_signal_dates, save_signal, signal_path, signal_status
-from khukra_logistics.disruption.catalog import DISRUPTION_SIGNALS, get_signal, list_signals
-from khukra_logistics.disruption.exploratory import SPARSE_SIGNALS, run_advanced_exploration
+from khukra_logistics.disruption.catalog import DISRUPTION_SIGNALS, get_signal, hybrid_channel, list_signals
+from khukra_logistics.disruption.evaluation import (
+    evaluate_forecast_precision,
+    latest_evaluation,
+    load_evaluation_history,
+    save_daily_evaluation,
+)
+from khukra_logistics.disruption.exploratory import run_advanced_exploration
+from khukra_logistics.disruption.hybrid_composite import SPARSE_SIGNALS
 from khukra_logistics.disruption.news.cache import load_headlines
 from khukra_logistics.disruption.news.insights import discover_news_insights
 from khukra_logistics.disruption.news.service import ingest_news_feeds, news_status
@@ -30,12 +37,15 @@ class DisruptionIntelligenceService:
         signals = list_signals()
         return {
             "focus": "global_disruption_forecast",
+            "north_star": "forecast_precision",
+            "hybrid_channels": ["macro", "market", "news"],
             "signal_count": len(signals),
             "signals": [
                 {
                     "signal_id": s.signal_id,
                     "label": s.label,
                     "category": s.category,
+                    "hybrid_channel": hybrid_channel(s),
                     "source": s.source,
                     "description": s.description,
                 }
@@ -120,6 +130,11 @@ class DisruptionIntelligenceService:
                     continue
                 if signal.source == "fred":
                     df = fred.fetch_daily_series(signal.source_code, start, end)
+                elif signal.source == "gscpi":
+                    monthly = gscpi.fetch_monthly_series(start, end)
+                    df = gscpi.expand_to_business_days(monthly)
+                elif signal.source == "yahoo_basket":
+                    df = yahoo.fetch_shipping_basket(start=start, end=end)
                 elif signal.source == "yahoo":
                     df = yahoo.fetch_daily_series(signal.source_code, start, end)
                 else:
@@ -140,11 +155,14 @@ class DisruptionIntelligenceService:
             "signals_refreshed": refreshed,
             "errors": errors,
             "status": "completed" if refreshed else "failed",
+            "evaluation": self._safe_daily_evaluation(),
         }
 
     def refresh_news(self) -> dict[str, Any]:
         """Fast RSS poll — optimized for low-latency headline ingest."""
-        return ingest_news_feeds()
+        result = ingest_news_feeds()
+        result["evaluation"] = self._safe_daily_evaluation()
+        return result
 
     def get_news_status(self) -> dict[str, Any]:
         return news_status()
@@ -213,7 +231,61 @@ class DisruptionIntelligenceService:
         return {
             "composite_risk": composite,
             "forecast": forecast,
+            "evaluation": self._safe_daily_evaluation(signal_ids, horizon),
         }
+
+    def evaluate(
+        self,
+        signal_ids: list[str] | None = None,
+        horizon: int = 30,
+        persist: bool = True,
+    ) -> dict[str, Any]:
+        """Daily forecast-precision measurement on the hybrid panel."""
+        repair_signal_dates()
+        panel = load_panel(signal_ids)
+        if panel.empty:
+            raise ValueError("No cached disruption data. Run refresh first.")
+        result = evaluate_forecast_precision(panel, horizon_days=horizon)
+        path = None
+        if persist:
+            path = save_daily_evaluation(result)
+        history = load_evaluation_history(days=14)
+        return {
+            "evaluation": result,
+            "saved_to": str(path) if path else None,
+            "history_days": len(history),
+            "history": [
+                {
+                    "evaluation_date": row.get("evaluation_date"),
+                    "precision_score": row.get("precision_score"),
+                    "verdict": row.get("verdict"),
+                    "best_method": row.get("walk_forward", {}).get("best_method"),
+                    "walk_forward_mae": row.get("walk_forward", {})
+                    .get("methods", {})
+                    .get(
+                        row.get("walk_forward", {}).get("best_method", "bayesian_linear"),
+                        {},
+                    )
+                    .get("walk_forward_mae"),
+                }
+                for row in history
+            ],
+        }
+
+    def evaluation_history(self, days: int = 30) -> dict[str, Any]:
+        history = load_evaluation_history(days=days)
+        latest = history[0] if history else latest_evaluation()
+        return {"latest": latest, "history": history, "days": days}
+
+    def _safe_daily_evaluation(
+        self,
+        signal_ids: list[str] | None = None,
+        horizon: int = 30,
+    ) -> dict[str, Any] | None:
+        try:
+            return self.evaluate(signal_ids, horizon, persist=True)["evaluation"]
+        except ValueError:
+            return None
 
     def panel_data(
         self,

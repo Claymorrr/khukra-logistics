@@ -128,18 +128,23 @@ export function ChartDashboard({
   }, [discovery, tailDays]);
 
   const forecastChartData = useMemo(() => {
-    const series = discovery?.composite_risk.series ?? forecast?.composite_risk.series;
+    const series = forecast?.forecast.production_series;
+    const fallback = discovery?.composite_risk.series ?? forecast?.composite_risk.series;
     const fc = forecast?.forecast;
-    if (!series?.dates.length || !fc) return compositeChartData;
+    if (!fc) return compositeChartData;
 
-    const tail = Math.min(252, series.dates.length);
-    const histDates = series.dates.slice(-tail);
-    const histZ = series.composite_z.slice(-tail);
-    const lastDate = series.dates[series.dates.length - 1];
+    const histDates = series?.dates?.length ? series.dates : fallback?.dates ?? [];
+    const histZ = series?.values?.length ? series.values : fallback?.composite_z ?? [];
+    if (!histDates.length) return compositeChartData;
 
-    const hist = histDates.map((date, i) => ({
+    const tail = Math.min(252, histDates.length);
+    const histSlice = histDates.slice(-tail);
+    const zSlice = histZ.slice(-tail);
+    const lastDate = histSlice[histSlice.length - 1];
+
+    const hist = histSlice.map((date, i) => ({
       date,
-      actual: histZ[i],
+      actual: zSlice[i],
       projected: null as number | null,
       lower: null as number | null,
       upper: null as number | null,
@@ -353,11 +358,11 @@ export function ChartDashboard({
         </ChartPanel>
 
         <ChartPanel
-          title="Composite forecast"
+          title="Production model forecast"
           subtitle={
             forecast
-              ? `${forecast.forecast.horizon_days}d Bayesian projection · ${((forecast.forecast.credible_level ?? 0.95) * 100).toFixed(0)}% band`
-              : "Run forecast for posterior predictive outlook"
+              ? `${forecast.forecast.horizon_days}d ${forecast.forecast.selected_method ?? "mean_reversion"} projection · ${forecast.forecast.smooth_days ?? 9}d smoothed input · MAE ${forecast.forecast.forecast_mae.toFixed(3)}`
+              : "Run forecast to see production model outlook"
           }
           height="h-[min(40vh,400px)]"
         >

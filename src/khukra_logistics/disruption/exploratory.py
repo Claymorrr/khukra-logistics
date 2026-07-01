@@ -14,10 +14,8 @@ from khukra_logistics.disruption.bayesian import (
     bayesian_correlation,
     bayesian_model_compare_nested,
 )
+from khukra_logistics.disruption.hybrid_composite import SPARSE_SIGNALS
 from khukra_logistics.disruption.statistics import _returns, composite_risk_index
-
-
-SPARSE_SIGNALS = frozenset({"news_stress", "news_sentiment"})
 
 
 def _signal_cols(panel: pd.DataFrame) -> list[str]:

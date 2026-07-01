@@ -1,15 +1,21 @@
 # Khukra Operations Board
 
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-01
 
-Single tracker for suggestions, decisions, and work across **Khukra Finance** and **Khukra Logistics**.  
+Single tracker for suggestions, decisions, and work across **Khukra Finance**, **Khukra Physics**, and **Khukra Logistics**.  
 The chat is not the source of truth — **this file and the GitHub Project are**.
 
 | Resource | Location |
 |----------|----------|
 | Machine-readable items | [`board.manifest.json`](../board.manifest.json) |
 | Sync to GitHub | `.\scripts\sync-operations-board.ps1` |
-| GitHub Project | **Khukra Operations** (#4) — [open board](https://github.com/users/Claymorrr/projects/4) |
+| GitHub Project | **Khukra Operations** — [open board](https://github.com/users/Claymorrr/projects/4) |
+
+---
+
+## North star
+
+**Forecast precision** — measured daily on the hybrid panel (macro + market + news). Discover, explore, and NLP exist to raise the precision score.
 
 ---
 
@@ -25,12 +31,30 @@ The chat is not the source of truth — **this file and the GitHub Project are**
 
 | ID | Item | Repo |
 |----|------|------|
-| ops-012 | Push khukra-logistics to GitHub + link board | logistics |
 | ops-013 | Maintain Operations board as canonical tracker | ops |
 
 ---
 
-## Backlog (suggestions)
+## Backlog — NLP roadmap (Logistics)
+
+High-ROI order: **ops-015 → ops-016 → ops-017 → ops-018**, then Phase 3–4.
+
+| ID | Phase | Item | Repo |
+|----|-------|------|------|
+| ops-015 | 2 | NER + entity extraction (ports, canals, carriers) | logistics |
+| ops-016 | 2 | Event typing (strike, closure, cyber, …) | logistics |
+| ops-017 | 2 | Headline dedup (MinHash / embeddings) | logistics |
+| ops-018 | 2 | Aspect / logistics-targeted sentiment | logistics |
+| ops-019 | 3 | FinBERT or zero-shot relevance augment | logistics |
+| ops-020 | 3 | Embedding theme clustering + novelty | logistics |
+| ops-021 | 4 | LLM event extraction + RAG analyst (optional) | logistics |
+| ops-022 | — | NLP validation via lead-lag vs macro signals | logistics |
+
+**Phase 1 (done):** ops-014 — RSS judgment → VADER → `news_stress` + `news_sentiment`.
+
+---
+
+## Backlog — other
 
 | ID | Item | Repo |
 |----|------|------|
@@ -52,6 +76,19 @@ The chat is not the source of truth — **this file and the GitHub Project are**
 | ops-007 | Scaffold khukra-logistics repo | logistics |
 | ops-008 | Disruption ingest + statistical discovery | logistics |
 | ops-009 | Discovery cockpit UI | logistics |
+| ops-012 | Push repos to GitHub (finance, physics, logistics) | logistics |
+| ops-014 | NLP Phase 1 — judgment + VADER + news signals | logistics |
+| ops-023 | Daily forecast precision scorecard (hybrid) | logistics |
+| ops-024 | GSCPI + logistics RSS + shipping basket | logistics |
+| ops-025 | Inverse-variance hybrid composite + news weight tune | logistics |
+
+---
+
+## Backlog — forecast & hybrid data
+
+| ID | Item | Repo |
+|----|------|------|
+| _empty — next tier: NLP validation (ops-015+) and GSCPI vintage tracking_ | | |
 
 ---
 

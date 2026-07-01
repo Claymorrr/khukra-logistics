@@ -1,4 +1,4 @@
-"""Curated low-latency RSS feeds for logistics disruption headlines."""
+"""Curated logistics-native RSS feeds for disruption headlines."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ class NewsFeed:
     category: str
 
 
+# Logistics-heavy feeds first — higher retention vs broad business wires.
 NEWS_FEEDS: tuple[NewsFeed, ...] = (
-    NewsFeed("bbc_business", "BBC Business", "http://feeds.bbci.co.uk/news/business/rss.xml", "macro"),
     NewsFeed("freightwaves", "FreightWaves", "https://www.freightwaves.com/feed", "shipping"),
     NewsFeed(
         "supplychain_dive",
@@ -22,8 +22,15 @@ NEWS_FEEDS: tuple[NewsFeed, ...] = (
         "https://www.supplychaindive.com/feeds/news/",
         "logistics",
     ),
-    NewsFeed("reuters_business", "Reuters Business", "https://feeds.reuters.com/reuters/businessNews", "macro"),
-    NewsFeed("aj_world", "Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", "geopolitics"),
+    NewsFeed("the_loadstar", "The Loadstar", "https://theloadstar.com/feed/", "logistics"),
+    NewsFeed("gcaptain", "gCaptain", "https://gcaptain.com/feed/", "shipping"),
+    NewsFeed("splash247", "Splash247", "https://splash247.com/feed/", "shipping"),
+    NewsFeed(
+        "maritime_exec",
+        "Maritime Executive",
+        "https://maritime-executive.com/rss",
+        "shipping",
+    ),
 )
 
 FEEDS_BY_ID: dict[str, NewsFeed] = {f.feed_id: f for f in NEWS_FEEDS}

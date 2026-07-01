@@ -57,7 +57,7 @@
       "id": "ops-007",
       "title": "[Logistics] Scaffold khukra-logistics repo",
       "body": "Standalone repo with disruption/quality/resilience models, CLI, API, tests.",
-      "repo": "Claymorrr/khukra",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "Done",
       "labels": ["ops", "logistics", "foundation"]
     },
@@ -65,7 +65,7 @@
       "id": "ops-008",
       "title": "[Logistics] Disruption ingest + statistical discovery pipeline",
       "body": "FRED/Yahoo signals, refresh/discover/forecast CLI and API endpoints. Pearson/Spearman, regimes, lead-lag, composite risk.",
-      "repo": "Claymorrr/khukra",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "Done",
       "labels": ["ops", "logistics", "data", "statistics"]
     },
@@ -73,15 +73,15 @@
       "id": "ops-009",
       "title": "[Logistics] Discovery cockpit UI",
       "body": "Browser board for catalog, refresh, insights, and composite risk charts (like Khukra finance cockpit).",
-      "repo": "Claymorrr/khukra",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "Done",
       "labels": ["ops", "logistics", "ui", "suggestion"]
     },
     {
       "id": "ops-010",
       "title": "[Logistics] Add port congestion + geopolitical event feeds",
-      "body": "Next-tier disruption data sources for global risk analysis.",
-      "repo": "Claymorrr/khukra",
+      "body": "Next-tier disruption data sources for global risk analysis (structured feeds beyond RSS headlines).",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "Backlog",
       "labels": ["ops", "logistics", "data", "suggestion"]
     },
@@ -89,25 +89,121 @@
       "id": "ops-011",
       "title": "[Logistics] Calibrate simulation model from discovered composite risk",
       "body": "Bridge empirical panel to disruption_risk_forecast instead of pure synthetic paths.",
-      "repo": "Claymorrr/khukra",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "Backlog",
       "labels": ["ops", "logistics", "modeling", "suggestion"]
     },
     {
       "id": "ops-012",
-      "title": "[Logistics] Push repo to GitHub + link Operations board",
-      "body": "Remote repo and GitHub Project for tracking outside chat.",
-      "repo": "Claymorrr/khukra",
-      "status": "In Progress",
+      "title": "[Logistics] Push repos to GitHub + link Operations board",
+      "body": "khukra-logistics, khukra (finance-only), and khukra-physics pushed to GitHub. Operations board lives in logistics repo.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Done",
       "labels": ["ops", "logistics", "infra"]
     },
     {
       "id": "ops-013",
       "title": "[Ops] Maintain single Operations board (this manifest)",
       "body": "All agent suggestions go to board.manifest.json and sync to GitHub Project. Chat is not the tracker.",
-      "repo": "Claymorrr/khukra",
+      "repo": "Claymorrr/khukra-logistics",
       "status": "In Progress",
       "labels": ["ops", "process"]
+    },
+    {
+      "id": "ops-014",
+      "title": "[Logistics] NLP Phase 1 — RSS judgment + VADER sentiment + news signals",
+      "body": "Pipeline: RSS → objective judgment (logistics/shock/macro channels) → VADER NLP on retained headlines → tone-adjusted news_stress + daily news_sentiment. Discover insights: sentiment spike, most negative headline. Code: disruption/news/{judgment,sentiment,enrich,service}.py.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Done",
+      "labels": ["ops", "logistics", "nlp", "news"]
+    },
+    {
+      "id": "ops-015",
+      "title": "[Logistics] NLP Phase 2 — NER + entity extraction on retained headlines",
+      "body": "Tag ports, canals (Suez/Panama), carriers, countries, commodities on judgment-filtered headlines. Emit entity columns in headline cache and optional daily entity-count signals (e.g. news_suez_mentions). CPU-only; spaCy small or gazetteer + rules. Plugs into enrich.py after judgment.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-016",
+      "title": "[Logistics] NLP Phase 2 — Event typing (strike, closure, cyber, sanction, weather, bankruptcy)",
+      "body": "Classify retained headlines into disruption event types to replace/augment regex channel matching in judgment.py. Enables structured event stream and type-specific daily signals. Start with rules + keyword patterns; optional zero-shot classifier later.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-017",
+      "title": "[Logistics] NLP Phase 2 — Headline dedup (MinHash or embedding clusters)",
+      "body": "Collapse near-duplicate titles across feeds before aggregating news_stress so one story does not inflate daily impact. MinHash for speed; optional MiniLM embeddings for semantic dupes. Apply between judgment and enrich.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-018",
+      "title": "[Logistics] NLP Phase 2 — Aspect / logistics-targeted sentiment",
+      "body": "Score polarity toward freight/trade disruption, not generic headline tone. Fixes cases where VADER misreads logistics jargon or mixed macro+logistics stories. Output aspect_sentiment alongside VADER compound in enrich.py.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-019",
+      "title": "[Logistics] NLP Phase 3 — FinBERT or zero-shot relevance to augment judgment",
+      "body": "Replace brittle relevance thresholds with domain-aware classifier (FinBERT fine-tune or BART-MNLI zero-shot on disruption objective). Keep rule-based judgment as fallback for explainability. Optional dep group in pyproject.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-020",
+      "title": "[Logistics] NLP Phase 3 — Embedding theme clustering + novelty detection",
+      "body": "Sentence embeddings (e.g. all-MiniLM-L6-v2) on retained headlines: cluster themes, flag novel clusters vs 7-day baseline, feed Discover with theme summaries. Weekly rollups for sparse daily panels.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-021",
+      "title": "[Logistics] NLP Phase 4 — LLM structured event extraction + RAG analyst",
+      "body": "Optional analyst surface: LLM extracts JSON events (who/what/where/severity) from title+summary; RAG over retained headline cache + macro panel for Q&A. Not required for core daily signals — ship only if chat copilot is a product goal.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+    },
+    {
+      "id": "ops-022",
+      "title": "[Logistics] NLP validation — lead-lag vs VIX/shipping_proxy for headline quality",
+      "body": "Without labeled ground truth, validate NLP features by lead-lag and Bayesian correlation vs macro signals. Benchmark Phase 2+ changes against news_sentiment baseline. Add tests/notebook for regression on headline scoring.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Backlog",
+      "labels": ["ops", "logistics", "nlp", "statistics", "suggestion"]
+    },
+    {
+      "id": "ops-023",
+      "title": "[Logistics] North star — daily forecast precision scorecard (hybrid panel)",
+      "body": "Forecast precision is the product goal. Hybrid macro+market+news panel evaluated daily: walk-forward MAE, direction hit rate, channel ablation, precision score 0-100, verdict. Auto-run on refresh/news. API: POST /evaluate, GET /evaluation. Serves as ground truth for whether analysis is right.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Done",
+      "labels": ["ops", "logistics", "forecast", "evaluation"]
+    },
+    {
+      "id": "ops-024",
+      "title": "[Logistics] Hybrid data tier 1 — GSCPI + logistics RSS + shipping basket",
+      "body": "Improve forecast precision by replacing low-relevance sources: NY Fed GSCPI, logistics-native RSS feeds, multi-name shipping basket. Success = daily precision_score trend up and news channel_lift positive.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Done",
+      "labels": ["ops", "logistics", "data", "forecast"]
+    },
+    {
+      "id": "ops-025",
+      "title": "[Logistics] Forecast model selection + weighted hybrid composite",
+      "body": "Auto-pick Holt vs Bayesian linear on walk-forward MAE. Weight signals by predictive screen / channel ablation instead of equal-weight z-scores. Inverse-variance channel combine; news weight lowered to 8%. Success criterion: beats_holt true on daily evaluation.",
+      "repo": "Claymorrr/khukra-logistics",
+      "status": "Done",
+      "labels": ["ops", "logistics", "forecast", "modeling"]
     }
   ]
 }

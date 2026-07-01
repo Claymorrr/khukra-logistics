@@ -107,6 +107,12 @@ export interface ForecastResult {
   composite_risk: DiscoverResult["composite_risk"];
   forecast: {
     horizon_days: number;
+    selected_method?: string;
+    method_scores?: Record<string, { walk_forward_mae: number; direction_hit_rate: number }>;
+    smooth_days?: number;
+    production_series?: { dates: string[]; values: number[] };
+    hybrid_mode?: string;
+    channel_weights?: Record<string, number>;
     forecast_mae: number;
     forecast_rmse: number;
     credible_level?: number;
@@ -115,6 +121,53 @@ export interface ForecastResult {
     forecast_upper: number[];
     interpretation: string;
   };
+  evaluation?: EvaluationResult | null;
+}
+
+export interface EvaluationWalkForward {
+  methods: Record<
+    string,
+    { walk_forward_mae: number; walk_forward_rmse: number; direction_hit_rate: number }
+  >;
+  best_method: string;
+  beats_holt: boolean;
+  beats_naive: boolean;
+}
+
+export interface EvaluationResult {
+  evaluated_at: string;
+  evaluation_date: string;
+  north_star: string;
+  precision_score: number;
+  verdict: "on_track" | "improving" | "needs_work";
+  interpretation: string;
+  walk_forward: EvaluationWalkForward;
+  hybrid: {
+    channels: Record<string, { signal_ids: string[]; active_count: number }>;
+    hybrid_mode: string;
+    total_signals: number;
+  };
+  channel_ablation?: Record<string, number>;
+}
+
+export interface EvaluationHistoryRow {
+  evaluation_date?: string;
+  precision_score?: number;
+  verdict?: string;
+  best_method?: string;
+  walk_forward_mae?: number;
+}
+
+export interface EvaluateResponse {
+  evaluation: EvaluationResult;
+  saved_to?: string | null;
+  history: EvaluationHistoryRow[];
+}
+
+export interface EvaluationHistoryResponse {
+  latest: EvaluationResult | null;
+  history: EvaluationResult[];
+  days: number;
 }
 
 export type PanelScale = "raw" | "rebased" | "zscore";
@@ -178,6 +231,22 @@ export function forecastRisk(body: { signal_ids?: string[]; horizon_days?: numbe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export function evaluatePrecision(body: {
+  signal_ids?: string[];
+  horizon_days?: number;
+  persist?: boolean;
+} = {}) {
+  return apiFetch<EvaluateResponse>("/disruption/evaluate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function getEvaluationHistory(days = 30) {
+  return apiFetch<EvaluationHistoryResponse>(`/disruption/evaluation?days=${days}`);
 }
 
 export function getPanelData(body: {
