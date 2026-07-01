@@ -30,3 +30,7 @@ def test_decompose_hybrid_index_returns_formula_fields():
     assert "macro" in result["channels"] or "market" in result["channels"]
     contrib_sum = sum(result["channel_contributions"].values())
     assert abs(contrib_sum - result["composite_raw"]) < 0.05
+    assert "interpretation" in result
+    assert result["interpretation"]["regime"] in ("calm", "neutral", "watch", "elevated")
+    assert len(result["interpretation"]["top_drivers"]) >= 1
+    assert "headline" in result["interpretation"]

@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from khukra.disruption.catalog import get_signal, hybrid_channel
+from khukra.disruption.bayesian import composite_posterior
 
 # Production smoothing — tuned on walk-forward precision (ops-025)
 COMPOSITE_SMOOTH_DAYS = 9
@@ -27,6 +28,124 @@ DEFAULT_CHANNEL_WEIGHTS: dict[str, float] = {
 
 ROLLING_Z_WINDOW = 60
 ROLLING_Z_MIN_PERIODS = 20
+
+REGIME_BANDS = (
+    ("calm", -float("inf"), -0.5, "Calm", "Stress is below recent norms across the hybrid panel."),
+    ("neutral", -0.5, 0.5, "Neutral", "Stress is near its 60-day average — no strong directional signal."),
+    ("watch", 0.5, 1.5, "Watch", "Stress is building above recent norms — worth monitoring."),
+    ("elevated", 1.5, float("inf"), "Elevated", "Stress is materially above recent norms."),
+)
+
+
+def _regime_for_z(z: float) -> tuple[str, str, str]:
+    for regime_id, lo, hi, label, detail in REGIME_BANDS:
+        if lo <= z < hi:
+            return regime_id, label, detail
+    return "elevated", "Elevated", REGIME_BANDS[-1][4]
+
+
+def _build_interpretation(
+    panel: pd.DataFrame,
+    composite_raw: pd.Series,
+    composite_smoothed: pd.Series,
+    signal_meta: list[dict[str, Any]],
+    channel_detail: dict[str, Any],
+    norm_ch_weights: dict[str, float],
+    contributions: dict[str, float],
+    composite_value: float,
+    smoothed_value: float,
+    n_signals: int,
+) -> dict[str, Any]:
+    """Plain-language and contextual interpretation for the composite index."""
+    from scipy import stats as sp_stats
+
+    clean = composite_raw.dropna()
+    post = composite_posterior(composite_value, n_signals, int(len(clean)))
+    percentile = float(sp_stats.percentileofscore(clean, composite_value)) if len(clean) else 50.0
+    p10 = float(np.percentile(clean, 10)) if len(clean) else -0.5
+    p90 = float(np.percentile(clean, 90)) if len(clean) else 1.5
+
+    regime_id, regime_label, regime_detail = _regime_for_z(composite_value)
+    smooth_regime_id, smooth_regime_label, _ = _regime_for_z(smoothed_value)
+
+    drivers: list[dict[str, Any]] = []
+    for s in signal_meta:
+        ch = s["channel"]
+        w_ch = norm_ch_weights.get(ch, 0.0)
+        w_sig = s.get("weight_in_channel") or 0.0
+        impact = w_ch * w_sig * s["z_score"]
+        if abs(impact) < 0.01:
+            continue
+        drivers.append(
+            {
+                "signal_id": s["signal_id"],
+                "label": s["label"],
+                "channel": ch,
+                "impact": round(impact, 4),
+                "direction": "up" if impact > 0 else "down",
+                "z_score": s["z_score"],
+            }
+        )
+    drivers.sort(key=lambda d: abs(d["impact"]), reverse=True)
+
+    channel_rank = sorted(
+        ((ch, contributions.get(ch, 0.0)) for ch in contributions),
+        key=lambda x: abs(x[1]),
+        reverse=True,
+    )
+    channel_bits: list[str] = []
+    for ch, contrib in channel_rank[:2]:
+        if abs(contrib) < 0.05:
+            continue
+        verb = "pushing stress up" if contrib > 0 else "pulling stress down"
+        channel_bits.append(f"{ch} ({verb}, {contrib:+.2f}σ)")
+
+    driver_bits: list[str] = []
+    for d in drivers[:3]:
+        driver_bits.append(f"{d['label']} ({d['impact']:+.2f}σ)")
+
+    headline_parts = [
+        f"Hybrid disruption index at {composite_value:+.2f}σ ({regime_label.lower()}).",
+        f"Smoothed production level {smoothed_value:+.2f}σ ({smooth_regime_label.lower()}).",
+        f"Historical percentile {percentile:.0f} (vs full cached sample).",
+    ]
+    if channel_bits:
+        headline_parts.append(f"Main channels: {'; '.join(channel_bits)}.")
+    if driver_bits:
+        headline_parts.append(f"Top drivers: {', '.join(driver_bits)}.")
+
+    recent_n = min(90, len(composite_raw))
+    raw_tail = composite_raw.iloc[-recent_n:]
+    smooth_tail = composite_smoothed.iloc[-recent_n:]
+    idx = raw_tail.index
+
+    return {
+        "regime": regime_id,
+        "regime_label": regime_label,
+        "regime_detail": regime_detail,
+        "smoothed_regime": smooth_regime_id,
+        "smoothed_regime_label": smooth_regime_label,
+        "headline": " ".join(headline_parts),
+        "percentile_rank": round(percentile, 1),
+        "prob_elevated": round(post["prob_elevated"], 4),
+        "ci_low": round(post["ci_low"], 4),
+        "ci_high": round(post["ci_high"], 4),
+        "p10": round(p10, 4),
+        "p90": round(p90, 4),
+        "vs_zero": round(composite_value, 4),
+        "smoothed_vs_zero": round(smoothed_value, 4),
+        "top_drivers": drivers[:5],
+        "channel_rank": [{"channel": ch, "contribution": round(v, 4)} for ch, v in channel_rank],
+        "bands": [
+            {"id": r, "label": lbl, "from": lo if lo > -1e6 else -2.5, "to": hi if hi < 1e6 else 2.5}
+            for r, lo, hi, lbl, _ in REGIME_BANDS
+        ],
+        "series_recent": {
+            "dates": panel.loc[idx, "date"].dt.strftime("%Y-%m-%d").tolist(),
+            "composite_z": [round(float(v), 4) for v in raw_tail.tolist()],
+            "composite_smoothed": [round(float(v), 4) for v in smooth_tail.tolist()],
+        },
+    }
 
 
 def _zscore_series(series: pd.Series, window: int = ROLLING_Z_WINDOW) -> pd.Series:
@@ -157,6 +276,19 @@ def decompose_hybrid_index(panel: pd.DataFrame) -> dict[str, Any]:
         if channel_detail[ch]["value"] is not None
     }
 
+    interpretation = _build_interpretation(
+        panel,
+        composite_raw,
+        smooth_series,
+        signal_meta,
+        channel_detail,
+        norm_ch_weights,
+        contributions,
+        composite_value,
+        smoothed_value,
+        len(signal_meta),
+    )
+
     return {
         "date": date_str,
         "parameters": {
@@ -170,6 +302,7 @@ def decompose_hybrid_index(panel: pd.DataFrame) -> dict[str, Any]:
         "composite_raw": round(composite_value, 4),
         "composite_smoothed": round(smoothed_value, 4),
         "channel_contributions": contributions,
+        "interpretation": interpretation,
         "formulas": {
             "z_score": "z_t(i) = (x_t(i) − μ_60(i)) / σ_60(i)",
             "channel": "Z_t(c) = Σ_i w_i(c) · z_t(i)   where w_i ∝ 1/Var(z(i))",

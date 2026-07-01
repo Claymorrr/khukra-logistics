@@ -32,6 +32,7 @@ import {
 import { ChartDashboard } from "@/components/ChartDashboard";
 import { EvaluationScorecard } from "@/components/EvaluationScorecard";
 import { WeekAheadForecast } from "@/components/WeekAheadForecast";
+import { CompositeInterpretVisual } from "@/components/CompositeInterpretVisual";
 import { IndexMathVisual } from "@/components/IndexMathVisual";
 import { FeatureGuide } from "@/components/FeatureGuide";
 import { NewsPanel } from "@/components/NewsPanel";
@@ -233,6 +234,8 @@ export function DisruptionCockpit() {
           />
         </div>
       </header>
+
+      <CompositeInterpretVisual refreshKey={evalRefreshKey} />
 
       <WeekAheadForecast refreshKey={evalRefreshKey} />
 

@@ -314,6 +314,38 @@ export interface IndexDecompositionSignal {
   weight_in_channel?: number;
 }
 
+export interface IndexInterpretation {
+  regime: string;
+  regime_label: string;
+  regime_detail: string;
+  smoothed_regime: string;
+  smoothed_regime_label: string;
+  headline: string;
+  percentile_rank: number;
+  prob_elevated: number;
+  ci_low: number;
+  ci_high: number;
+  p10: number;
+  p90: number;
+  vs_zero: number;
+  smoothed_vs_zero: number;
+  top_drivers: Array<{
+    signal_id: string;
+    label: string;
+    channel: string;
+    impact: number;
+    direction: "up" | "down";
+    z_score: number;
+  }>;
+  channel_rank: Array<{ channel: string; contribution: number }>;
+  bands: Array<{ id: string; label: string; from: number; to: number }>;
+  series_recent: {
+    dates: string[];
+    composite_z: number[];
+    composite_smoothed: number[];
+  };
+}
+
 export interface IndexDecomposition {
   date: string;
   parameters: {
@@ -334,6 +366,7 @@ export interface IndexDecomposition {
   composite_raw: number;
   composite_smoothed: number;
   channel_contributions: Record<string, number>;
+  interpretation: IndexInterpretation;
   formulas: {
     z_score: string;
     channel: string;
