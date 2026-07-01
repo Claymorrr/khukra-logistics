@@ -38,7 +38,7 @@ $apiReady = $false
 for ($i = 0; $i -lt 45; $i++) {
     try {
         $h = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-        if ($h.status -eq "ok" -and $h.capabilities -contains "explore" -and $h.capabilities -contains "news" -and $h.capabilities -contains "evaluate") {
+        if ($h.status -eq "ok" -and $h.capabilities -contains "explore" -and $h.capabilities -contains "news" -and $h.capabilities -contains "evaluate" -and $h.capabilities -contains "production-model") {
             $apiReady = $true
             break
         }
@@ -56,7 +56,7 @@ if (-not $apiReady) {
     for ($i = 0; $i -lt 30; $i++) {
         try {
             $h = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-            if ($h.status -eq "ok" -and $h.capabilities -contains "explore" -and $h.capabilities -contains "news" -and $h.capabilities -contains "evaluate") {
+            if ($h.status -eq "ok" -and $h.capabilities -contains "explore" -and $h.capabilities -contains "news" -and $h.capabilities -contains "evaluate" -and $h.capabilities -contains "production-model") {
                 $apiReady = $true
                 break
             }

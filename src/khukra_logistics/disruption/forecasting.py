@@ -35,12 +35,17 @@ def predict_next_mean_reversion(train: np.ndarray, window: int = 15, speed: floa
     return float(train[-1] + speed * (mu - train[-1]))
 
 
+PRODUCTION_METHOD = "mean_reversion"
+
 PREDICTORS: dict[str, PredictFn] = {
     "holt": predict_next_holt,
     "mean_reversion": predict_next_mean_reversion,
     "bayesian_linear": predict_next_bayesian,
     "naive": predict_next_naive,
 }
+
+# Fast scoring for API paths that must not run expensive Bayesian walk-forward.
+FAST_SCORE_METHODS: tuple[str, ...] = ("holt", PRODUCTION_METHOD)
 
 
 def walk_forward_mae(
@@ -80,18 +85,33 @@ def walk_forward_mae(
     return mae, dir_rate
 
 
-def select_best_method(y: np.ndarray, min_train: int = 60) -> tuple[str, dict[str, dict[str, float]]]:
-    """Pick lowest walk-forward MAE method on recent tail (naive excluded from production)."""
+def score_methods(
+    y: np.ndarray,
+    methods: tuple[str, ...] | None = None,
+    min_train: int = 60,
+) -> dict[str, dict[str, float]]:
     scores: dict[str, dict[str, float]] = {}
-    for name, fn in PREDICTORS.items():
+    for name in methods or tuple(PREDICTORS.keys()):
+        fn = PREDICTORS[name]
         mae, dir_rate = walk_forward_mae(y, fn, min_train=min_train)
         scores[name] = {
             "walk_forward_mae": round(mae, 4),
             "direction_hit_rate": round(dir_rate, 4),
         }
+    return scores
+
+
+def select_best_method(y: np.ndarray, min_train: int = 60) -> tuple[str, dict[str, dict[str, float]]]:
+    """Pick lowest walk-forward MAE method on recent tail (naive excluded from production)."""
+    scores = score_methods(y, min_train=min_train)
     production = {k: v for k, v in scores.items() if k != "naive"}
     best = min(production, key=lambda k: production[k]["walk_forward_mae"])
     return best, scores
+
+
+def score_methods_fast(y: np.ndarray, min_train: int = 60) -> dict[str, dict[str, float]]:
+    """Holt + mean reversion only — for low-latency forecast endpoints."""
+    return score_methods(y, methods=FAST_SCORE_METHODS, min_train=min_train)
 
 
 def forecast_horizon(y: np.ndarray, horizon: int, method: str) -> dict[str, list[float]]:

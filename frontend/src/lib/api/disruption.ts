@@ -245,6 +245,29 @@ export function evaluatePrecision(body: {
   });
 }
 
+export interface ProductionModelResult {
+  horizon_days: number;
+  production_method: string;
+  selected_method: string;
+  smooth_days: number;
+  hybrid_mode?: string;
+  production_series: { dates: string[]; values: number[] };
+  method_scores?: Record<string, { walk_forward_mae: number; direction_hit_rate: number }>;
+  forecast_mae?: number;
+  forecast: number[];
+  forecast_lower: number[];
+  forecast_upper: number[];
+  interpretation: string;
+}
+
+export function getProductionModel(horizonDays = 30) {
+  return apiFetch<ProductionModelResult>(
+    `/disruption/production-model?horizon_days=${horizonDays}`,
+    undefined,
+    60_000,
+  );
+}
+
 export function getEvaluationHistory(days = 30) {
   return apiFetch<EvaluationHistoryResponse>(`/disruption/evaluation?days=${days}`);
 }

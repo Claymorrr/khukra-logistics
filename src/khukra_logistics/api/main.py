@@ -72,6 +72,7 @@ def health() -> dict[str, Any]:
             "discover",
             "forecast",
             "evaluate",
+            "production-model",
             "panel",
             "explore",
             "news",
@@ -128,6 +129,14 @@ def disruption_discover(body: DiscoverRequest) -> dict[str, Any]:
 def disruption_forecast(body: ForecastRequest) -> dict[str, Any]:
     try:
         return get_disruption_service().forecast(body.signal_ids, body.horizon_days)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.get("/production-model")
+def disruption_production_model(horizon_days: int = 30) -> dict[str, Any]:
+    try:
+        return get_disruption_service().production_model(None, horizon_days)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -15,10 +15,10 @@ import {
   YAxis,
 } from "recharts";
 import {
-  forecastRisk,
   getEvaluationHistory,
+  getProductionModel,
   type EvaluationResult,
-  type ForecastResult,
+  type ProductionModelResult,
 } from "@/lib/api/disruption";
 import {
   CHART_GRID,
@@ -40,23 +40,26 @@ function addDays(iso: string, n: number): string {
 }
 
 export function ProductionModelChart({ refreshKey = 0 }: { refreshKey?: number }) {
-  const [forecast, setForecast] = useState<ForecastResult | null>(null);
+  const [model, setModel] = useState<ProductionModelResult | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [history, fc] = await Promise.all([
-        getEvaluationHistory(1),
-        forecastRisk({ horizon_days: 30 }),
-      ]);
+      const history = await getEvaluationHistory(1);
       setEvaluation(history.latest);
-      setForecast(fc);
-      setError(null);
+      const prod = await getProductionModel(30);
+      setModel(prod);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load production model");
+      const msg = e instanceof Error ? e.message : "Failed to load production model";
+      if (msg.includes("not found") || msg.includes("404")) {
+        setError("Production model API not loaded — restart with .\\scripts\\start-dev.ps1");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -67,24 +70,12 @@ export function ProductionModelChart({ refreshKey = 0 }: { refreshKey?: number }
   }, [load, refreshKey]);
 
   const productionMethod =
-    forecast?.forecast.selected_method ??
-    evaluation?.walk_forward?.best_method ??
-    "mean_reversion";
+    model?.production_method ?? evaluation?.walk_forward?.best_method ?? "mean_reversion";
 
   const chartData = useMemo(() => {
-    const fc = forecast?.forecast;
-    if (!fc) return [];
+    if (!model?.production_series?.dates?.length) return [];
 
-    const prod = fc.production_series;
-    const histDates = prod?.dates?.length
-      ? prod.dates
-      : forecast?.composite_risk.series.dates ?? [];
-    const histValues = prod?.values?.length
-      ? prod.values
-      : forecast?.composite_risk.series.composite_z ?? [];
-
-    if (!histDates.length) return [];
-
+    const { dates: histDates, values: histValues } = model.production_series;
     const tail = Math.min(252, histDates.length);
     const dates = histDates.slice(-tail);
     const values = histValues.slice(-tail);
@@ -98,12 +89,12 @@ export function ProductionModelChart({ refreshKey = 0 }: { refreshKey?: number }
       upper: null as number | null,
     }));
 
-    const proj = fc.forecast.map((v, i) => ({
+    const proj = model.forecast.map((v, i) => ({
       date: addDays(lastDate, i + 1),
       production: null as number | null,
       projected: v,
-      lower: fc.forecast_lower[i] ?? null,
-      upper: fc.forecast_upper[i] ?? null,
+      lower: model.forecast_lower[i] ?? null,
+      upper: model.forecast_upper[i] ?? null,
     }));
 
     if (hist.length) {
@@ -111,28 +102,25 @@ export function ProductionModelChart({ refreshKey = 0 }: { refreshKey?: number }
       return [...hist.slice(0, -1), bridge, ...proj];
     }
     return proj;
-  }, [forecast]);
+  }, [model]);
 
   const methodRows = useMemo(() => {
-    const methods =
-      evaluation?.walk_forward?.methods ?? forecast?.forecast.method_scores ?? {};
+    const methods = evaluation?.walk_forward?.methods ?? model?.method_scores ?? {};
     return Object.entries(methods)
       .filter(([name]) => name !== "naive")
       .map(([name, stats]) => ({
         name,
         label: METHOD_LABEL[name] ?? name,
         mae: stats.walk_forward_mae,
-        direction: stats.direction_hit_rate,
         isProduction: name === productionMethod,
       }))
       .sort((a, b) => a.mae - b.mae);
-  }, [evaluation, forecast, productionMethod]);
+  }, [evaluation, model, productionMethod]);
 
   const maxMae = methodRows.length ? Math.max(...methodRows.map((r) => r.mae)) : 1;
-  const smoothDays = forecast?.forecast.smooth_days ?? 9;
+  const smoothDays = model?.smooth_days ?? 9;
   const productionMae =
-    evaluation?.walk_forward?.methods?.[productionMethod]?.walk_forward_mae ??
-    forecast?.forecast.forecast_mae;
+    evaluation?.walk_forward?.methods?.[productionMethod]?.walk_forward_mae ?? model?.forecast_mae;
 
   return (
     <section className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4">
@@ -242,8 +230,8 @@ export function ProductionModelChart({ refreshKey = 0 }: { refreshKey?: number }
         <p className="mt-3 text-sm text-zinc-500">Refresh signals, then reload to see the production model.</p>
       )}
 
-      {forecast?.forecast.interpretation && (
-        <p className="mt-3 text-xs leading-relaxed text-zinc-500">{forecast.forecast.interpretation}</p>
+      {model?.interpretation && (
+        <p className="mt-3 text-xs leading-relaxed text-zinc-500">{model.interpretation}</p>
       )}
     </section>
   );

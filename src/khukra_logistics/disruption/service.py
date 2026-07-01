@@ -28,6 +28,7 @@ from khukra_logistics.disruption.statistics import (
     composite_risk_index,
     discover_insights,
     forecast_composite,
+    production_model_forecast,
     profile_panel,
 )
 
@@ -231,8 +232,14 @@ class DisruptionIntelligenceService:
         return {
             "composite_risk": composite,
             "forecast": forecast,
-            "evaluation": self._safe_daily_evaluation(signal_ids, horizon),
         }
+
+    def production_model(self, signal_ids: list[str] | None = None, horizon: int = 30) -> dict[str, Any]:
+        """Fast production-model payload for UI charts (no full daily evaluation)."""
+        panel = load_panel(signal_ids)
+        if panel.empty:
+            raise ValueError("No cached disruption data. Run refresh first.")
+        return production_model_forecast(panel, horizon=horizon)
 
     def evaluate(
         self,
@@ -282,6 +289,9 @@ class DisruptionIntelligenceService:
         signal_ids: list[str] | None = None,
         horizon: int = 30,
     ) -> dict[str, Any] | None:
+        cached = latest_evaluation()
+        if cached and cached.get("evaluation_date") == date.today().isoformat():
+            return cached
         try:
             return self.evaluate(signal_ids, horizon, persist=True)["evaluation"]
         except ValueError:
