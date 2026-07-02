@@ -41,7 +41,7 @@ NEXT_PUBLIC_API_URL=$($env:NEXT_PUBLIC_API_URL)
     for ($i = 0; $i -lt 45; $i++) {
         try {
             $h = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-            if ($h.status -eq "ok" -and $h.capabilities -contains "index-decomposition") {
+            if ($h.status -eq "ok" -and $h.capabilities -contains "index-decomposition" -and $h.capabilities -contains "forecast-check") {
                 $apiReady = $true
                 break
             }

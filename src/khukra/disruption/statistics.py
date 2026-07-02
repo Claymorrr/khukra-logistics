@@ -17,6 +17,9 @@ from khukra.disruption.bayesian import (
 from khukra.disruption.forecasting import (
     PRODUCTION_METHOD,
     forecast_horizon,
+    get_production_method,
+    get_production_predictor,
+    get_production_smooth_days,
     score_methods_fast,
     select_best_method,
 )
@@ -283,12 +286,15 @@ def _method_scores_for_forecast(y_fore: np.ndarray) -> tuple[str, dict[str, dict
 
 def production_model_forecast(panel: pd.DataFrame, horizon: int = 30) -> dict[str, Any]:
     """Low-latency production model path for UI — no full evaluation or Bayesian sweep."""
-    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=COMPOSITE_SMOOTH_DAYS)
+    smooth_days = get_production_smooth_days()
+    method = get_production_method()
+    predict_fn = get_production_predictor()
+    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=smooth_days)
     if len(smooth) < 40:
         raise ValueError("Need at least 40 observations for production forecast.")
 
     y_fore = smooth.values
-    proj = forecast_horizon(y_fore, horizon, PRODUCTION_METHOD)
+    proj = forecast_horizon(y_fore, horizon, predict_fn=predict_fn)
     prod_dates = panel.loc[smooth.index, "date"]
     production_series = {
         "dates": pd.to_datetime(prod_dates).dt.strftime("%Y-%m-%d").tolist(),
@@ -296,13 +302,13 @@ def production_model_forecast(panel: pd.DataFrame, horizon: int = 30) -> dict[st
     }
 
     _, method_scores = _method_scores_for_forecast(y_fore)
-    prod_mae = method_scores.get(PRODUCTION_METHOD, {}).get("walk_forward_mae")
+    prod_mae = method_scores.get(method, {}).get("walk_forward_mae")
 
     return {
         "horizon_days": horizon,
-        "production_method": PRODUCTION_METHOD,
-        "selected_method": PRODUCTION_METHOD,
-        "smooth_days": hybrid_meta.get("smooth_days", COMPOSITE_SMOOTH_DAYS),
+        "production_method": method,
+        "selected_method": method,
+        "smooth_days": hybrid_meta.get("smooth_days", smooth_days),
         "hybrid_mode": hybrid_meta.get("mode"),
         "production_series": production_series,
         "method_scores": method_scores,
@@ -311,9 +317,9 @@ def production_model_forecast(panel: pd.DataFrame, horizon: int = 30) -> dict[st
         "forecast_lower": proj["forecast_lower"],
         "forecast_upper": proj["forecast_upper"],
         "interpretation": (
-            f"Production {PRODUCTION_METHOD} on {COMPOSITE_SMOOTH_DAYS}-day smoothed hybrid "
+            f"Production {method} on {smooth_days}-day smoothed hybrid "
             f"(walk-forward MAE={prod_mae:.3f} when measured)." if prod_mae is not None
-            else f"Production {PRODUCTION_METHOD} on {COMPOSITE_SMOOTH_DAYS}-day smoothed hybrid."
+            else f"Production {method} on {smooth_days}-day smoothed hybrid."
         ),
     }
 
@@ -325,11 +331,14 @@ def forecast_composite(panel: pd.DataFrame, horizon: int = 30) -> dict[str, Any]
     if len(y) < 40:
         raise ValueError("Need at least 40 observations for forecast.")
 
-    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=COMPOSITE_SMOOTH_DAYS)
+    smooth_days = get_production_smooth_days()
+    method = get_production_method()
+    predict_fn = get_production_predictor()
+    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=smooth_days)
     y_fore = smooth.values if len(smooth) >= 40 else y
 
     best_method, method_scores = _method_scores_for_forecast(y_fore)
-    proj = forecast_horizon(y_fore, horizon, PRODUCTION_METHOD)
+    proj = forecast_horizon(y_fore, horizon, predict_fn=predict_fn)
 
     prod_dates = panel.loc[smooth.index, "date"]
     production_series = {
@@ -342,13 +351,13 @@ def forecast_composite(panel: pd.DataFrame, horizon: int = 30) -> dict[str, Any]
     y_hold = y[train_n:]
     hold_forecast, _, _ = forecast_holt_linear(y_train, len(y_hold))
     mae_holt = float(np.mean(np.abs(y_hold - hold_forecast[: len(y_hold)]))) if len(y_hold) else 0.0
-    prod_mae = method_scores.get(PRODUCTION_METHOD, {}).get("walk_forward_mae", 0.0)
+    prod_mae = method_scores.get(method, {}).get("walk_forward_mae", 0.0)
     resid = np.diff(y_fore[-60:]) if len(y_fore) > 60 else np.diff(y_fore)
     rmse = float(np.std(resid)) if len(resid) else 0.15
 
     return {
         "horizon_days": horizon,
-        "selected_method": PRODUCTION_METHOD,
+        "selected_method": method,
         "method_scores": method_scores,
         "forecast_mae": round(float(prod_mae), 4),
         "forecast_rmse": round(rmse, 4),
@@ -358,12 +367,12 @@ def forecast_composite(panel: pd.DataFrame, horizon: int = 30) -> dict[str, Any]
         "forecast_lower": proj["forecast_lower"],
         "forecast_upper": proj["forecast_upper"],
         "current_composite_z": composite["current"],
-        "smooth_days": hybrid_meta.get("smooth_days", COMPOSITE_SMOOTH_DAYS),
+        "smooth_days": hybrid_meta.get("smooth_days", smooth_days),
         "production_series": production_series,
         "hybrid_mode": hybrid_meta.get("mode"),
         "channel_weights": composite.get("hybrid", {}).get("channel_weights", {}),
         "interpretation": (
-            f"Hybrid composite forecast via {PRODUCTION_METHOD} "
+            f"Hybrid composite forecast via {method} "
             f"(walk-forward MAE={prod_mae:.3f} on 2y tail; Holt holdout {mae_holt:.3f}). "
             f"Channel weights: {composite.get('hybrid', {}).get('channel_weights', {})}."
         ),

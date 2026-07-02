@@ -28,6 +28,7 @@ cd khukra
 
 # Start API + cockpit UI (auto-seeds on first run if cache is empty)
 .\scripts\setup.ps1 -Dev
+# Or double-click: start-khukra.bat (desktop shortcut: "Start Khukra")
 ```
 
 - **Cockpit:** http://localhost:3020  

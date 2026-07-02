@@ -33,6 +33,8 @@ import { ChartDashboard } from "@/components/ChartDashboard";
 import { EvaluationScorecard } from "@/components/EvaluationScorecard";
 import { WeekAheadForecast } from "@/components/WeekAheadForecast";
 import { CompositeInterpretVisual } from "@/components/CompositeInterpretVisual";
+import { DailyForecastCheck } from "@/components/DailyForecastCheck";
+import { MaeOptimizerPanel } from "@/components/MaeOptimizerPanel";
 import { IndexMathVisual } from "@/components/IndexMathVisual";
 import { FeatureGuide } from "@/components/FeatureGuide";
 import { NewsPanel } from "@/components/NewsPanel";
@@ -237,11 +239,15 @@ export function DisruptionCockpit() {
 
       <CompositeInterpretVisual refreshKey={evalRefreshKey} />
 
+      <DailyForecastCheck refreshKey={evalRefreshKey} />
+
       <WeekAheadForecast refreshKey={evalRefreshKey} />
 
       <IndexMathVisual refreshKey={evalRefreshKey} />
 
       <EvaluationScorecard refreshKey={evalRefreshKey} />
+
+      <MaeOptimizerPanel refreshKey={evalRefreshKey} />
 
       {error && (
         <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">

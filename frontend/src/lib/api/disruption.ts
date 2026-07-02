@@ -379,6 +379,68 @@ export function getIndexDecomposition() {
   return apiFetch<IndexDecomposition>("/disruption/index-decomposition", undefined, 60_000);
 }
 
+export interface ForecastCheck {
+  checked_at: string;
+  forecast_method: string;
+  target: string;
+  smooth_days: number;
+  yesterday_date: string;
+  today_date: string;
+  yesterday_smoothed: number;
+  predicted_today: number;
+  actual_today_smoothed: number;
+  actual_today_raw: number;
+  error_abs: number;
+  error_signed: number;
+  actual_change: number;
+  predicted_change: number;
+  direction_correct: boolean;
+  beat_mae_target: boolean;
+  mae_target: number;
+  verdict: "hit" | "close" | "miss";
+  interpretation: string;
+}
+
+export function getForecastCheck() {
+  return apiFetch<ForecastCheck>("/disruption/forecast-check", undefined, 30_000);
+}
+
+export interface ForecastConfig {
+  production_method: string;
+  smooth_days: number;
+  mean_reversion: { window: number; speed: number };
+  walk_forward_mae?: number;
+  direction_hit_rate?: number;
+  baseline_mae?: number;
+  optimized_at?: string;
+}
+
+export interface ForecastOptimization {
+  optimized_at: string;
+  baseline: ForecastConfig & { walk_forward_mae: number; direction_hit_rate: number };
+  recommended: ForecastConfig & { walk_forward_mae: number; direction_hit_rate: number };
+  active_config: ForecastConfig;
+  improvement_abs: number;
+  improvement_pct: number;
+  beats_baseline: boolean;
+  mae_target: number;
+  beats_mae_target: boolean;
+  interpretation: string;
+}
+
+export function getForecastOptimization() {
+  return apiFetch<ForecastOptimization>("/disruption/forecast-optimization", undefined, 120_000);
+}
+
+export function applyForecastOptimization() {
+  return apiFetch<{
+    applied: boolean;
+    message: string;
+    optimization: ForecastOptimization;
+    active_config: ForecastConfig;
+  }>("/disruption/forecast-optimization/apply", { method: "POST" }, 120_000);
+}
+
 export function getEvaluationHistory(days = 30) {
   return apiFetch<EvaluationHistoryResponse>(`/disruption/evaluation?days=${days}`);
 }

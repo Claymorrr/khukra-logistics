@@ -56,6 +56,18 @@ def test_evaluate_forecast_precision_returns_scorecard():
     assert len(result["walk_forward"]["trace"]["series"]) > 0
 
 
+def test_evaluate_yesterday_forecast():
+    from khukra.disruption.evaluation import evaluate_yesterday_forecast
+
+    panel = _synthetic_panel()
+    result = evaluate_yesterday_forecast(panel)
+    assert result["forecast_method"] in ("mean_reversion", "holt", "bayesian_linear")
+    assert result["verdict"] in ("hit", "close", "miss")
+    assert result["error_abs"] >= 0
+    assert "interpretation" in result
+    assert result["yesterday_date"] < result["today_date"]
+
+
 def test_save_daily_evaluation(tmp_path, monkeypatch):
     from khukra.disruption import evaluation as ev
 

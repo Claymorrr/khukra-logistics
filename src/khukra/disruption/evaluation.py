@@ -12,8 +12,17 @@ import pandas as pd
 
 from khukra.disruption.bayesian import bayesian_linear_forecast
 from khukra.disruption.catalog import DISRUPTION_SIGNALS, get_signal, hybrid_channel
-from khukra.disruption.forecasting import PREDICTORS, select_best_method, walk_forward_mae, walk_forward_trace
-from khukra.disruption.hybrid_composite import COMPOSITE_SMOOTH_DAYS, build_hybrid_composite
+from khukra.disruption.forecasting import (
+    PREDICTORS,
+    PRODUCTION_METHOD,
+    get_production_method,
+    get_production_predictor,
+    get_production_smooth_days,
+    select_best_method,
+    walk_forward_mae,
+    walk_forward_trace,
+)
+from khukra.disruption.hybrid_composite import build_hybrid_composite
 from khukra.simulation.shared import data_root
 
 MIN_TRAIN = 60
@@ -56,7 +65,7 @@ def _leave_channel_out_mae(panel: pd.DataFrame, y_full: np.ndarray) -> dict[str,
         if len(keep) < 2:
             continue
         try:
-            reduced, _ = build_hybrid_composite(panel, keep, smooth_days=COMPOSITE_SMOOTH_DAYS)
+            reduced, _ = build_hybrid_composite(panel, keep, smooth_days=get_production_smooth_days())
             if len(reduced) < MIN_TRAIN + 5:
                 continue
             mae, _ = walk_forward_mae(reduced.values, PREDICTORS[best_method])
@@ -112,7 +121,7 @@ def evaluate_forecast_precision(
     horizon_days: int = 30,
 ) -> dict[str, Any]:
     """Run daily precision measurement on the weighted hybrid composite."""
-    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=COMPOSITE_SMOOTH_DAYS)
+    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=get_production_smooth_days())
     y = smooth.values
     dates = panel.loc[smooth.index, "date"]
     if len(y) < MIN_TRAIN + 10:
@@ -212,3 +221,101 @@ def load_evaluation_history(days: int = 30) -> list[dict[str, Any]]:
 def latest_evaluation() -> dict[str, Any] | None:
     history = load_evaluation_history(days=1)
     return history[0] if history else None
+
+
+def _direction_match(actual_delta: float, pred_delta: float) -> bool:
+    if abs(actual_delta) <= 1e-9:
+        return True
+    if abs(pred_delta) <= 1e-9:
+        return False
+    return (actual_delta > 0) == (pred_delta > 0)
+
+
+def _yesterday_step_interpretation(
+    *,
+    forecast_method: str,
+    yesterday_date: str,
+    today_date: str,
+    predicted: float,
+    actual: float,
+    error_abs: float,
+    direction_correct: bool,
+    actual_change: float,
+    predicted_change: float,
+) -> str:
+    level = "strong" if error_abs <= MAE_TARGET / 2 else "good" if error_abs <= MAE_TARGET else "weak"
+    dir_phrase = "Direction correct" if direction_correct else "Direction missed"
+    move_actual = "rose" if actual_change > 0 else "fell" if actual_change < 0 else "was flat"
+    move_pred = "rise" if predicted_change > 0 else "fall" if predicted_change < 0 else "stay flat"
+    return (
+        f"From {yesterday_date}, {forecast_method} forecast {today_date} at {predicted:+.2f}σ "
+        f"vs realized {actual:+.2f}σ ({level} level call, error {error_abs:.2f}σ; target ≤{MAE_TARGET}). "
+        f"Stress {move_actual} {abs(actual_change):.2f}σ; model expected a {move_pred} "
+        f"({abs(predicted_change):.2f}σ). {dir_phrase}."
+    )
+
+
+def evaluate_yesterday_forecast(panel: pd.DataFrame) -> dict[str, Any]:
+    """Score the latest 1-step production forecast against today's realized composite."""
+    smooth, hybrid_meta = build_hybrid_composite(panel, smooth_days=get_production_smooth_days())
+    raw, _ = build_hybrid_composite(panel, smooth_days=0)
+    if len(smooth) < 2:
+        raise ValueError("Need at least two composite observations for yesterday forecast check.")
+
+    y = smooth.values.astype(float)
+    dates = panel.loc[smooth.index, "date"]
+    t = len(y) - 1
+    train = y[:t]
+    actual_today = float(y[t])
+    predicted_today = float(get_production_predictor()(train))
+    actual_yesterday = float(y[t - 1])
+    raw_today = float(raw.iloc[-1])
+
+    error_abs = abs(actual_today - predicted_today)
+    error_signed = actual_today - predicted_today
+    actual_change = actual_today - actual_yesterday
+    predicted_change = predicted_today - actual_yesterday
+    direction_correct = _direction_match(actual_change, predicted_change)
+
+    if error_abs <= MAE_TARGET and direction_correct:
+        verdict = "hit"
+    elif error_abs <= MAE_TARGET:
+        verdict = "close"
+    else:
+        verdict = "miss"
+
+    yesterday_date = pd.Timestamp(dates.iloc[t - 1]).strftime("%Y-%m-%d")
+    today_date = pd.Timestamp(dates.iloc[t]).strftime("%Y-%m-%d")
+
+    return {
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "forecast_method": get_production_method(),
+        "target": "smoothed_composite",
+        "smooth_days": get_production_smooth_days(),
+        "hybrid_mode": hybrid_meta.get("mode"),
+        "yesterday_date": yesterday_date,
+        "today_date": today_date,
+        "yesterday_smoothed": round(actual_yesterday, 4),
+        "predicted_today": round(predicted_today, 4),
+        "actual_today_smoothed": round(actual_today, 4),
+        "actual_today_raw": round(raw_today, 4),
+        "error_abs": round(error_abs, 4),
+        "error_signed": round(error_signed, 4),
+        "actual_change": round(actual_change, 4),
+        "predicted_change": round(predicted_change, 4),
+        "direction_correct": direction_correct,
+        "beat_mae_target": error_abs <= MAE_TARGET,
+        "mae_target": MAE_TARGET,
+        "verdict": verdict,
+        "interpretation": _yesterday_step_interpretation(
+            forecast_method=get_production_method(),
+            yesterday_date=yesterday_date,
+            today_date=today_date,
+            predicted=predicted_today,
+            actual=actual_today,
+            error_abs=error_abs,
+            direction_correct=direction_correct,
+            actual_change=actual_change,
+            predicted_change=predicted_change,
+        ),
+    }

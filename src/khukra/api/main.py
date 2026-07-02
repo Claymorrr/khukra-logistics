@@ -74,6 +74,8 @@ def health() -> dict[str, Any]:
             "evaluate",
             "production-model",
             "index-decomposition",
+            "forecast-check",
+            "forecast-optimization",
             "panel",
             "explore",
             "news",
@@ -138,6 +140,30 @@ def disruption_forecast(body: ForecastRequest) -> dict[str, Any]:
 def disruption_index_decomposition() -> dict[str, Any]:
     try:
         return get_disruption_service().index_decomposition()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.get("/forecast-check")
+def disruption_forecast_check() -> dict[str, Any]:
+    try:
+        return get_disruption_service().yesterday_forecast_check()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.get("/forecast-optimization")
+def disruption_forecast_optimization() -> dict[str, Any]:
+    try:
+        return get_disruption_service().forecast_optimization()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@disruption.post("/forecast-optimization/apply")
+def disruption_apply_forecast_optimization() -> dict[str, Any]:
+    try:
+        return get_disruption_service().apply_forecast_optimization()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

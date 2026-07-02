@@ -167,10 +167,15 @@ def score_methods_fast(y: np.ndarray, min_train: int = 60) -> dict[str, dict[str
     return score_methods(y, methods=FAST_SCORE_METHODS, min_train=min_train)
 
 
-def forecast_horizon(y: np.ndarray, horizon: int, method: str) -> dict[str, list[float]]:
+def forecast_horizon(
+    y: np.ndarray,
+    horizon: int,
+    method: str | None = None,
+    predict_fn: PredictFn | None = None,
+) -> dict[str, list[float]]:
     """Project `horizon` steps using recursive one-step predictions."""
     y = np.asarray(y, dtype=float).copy()
-    fn = PREDICTORS.get(method, predict_next_holt)
+    fn = predict_fn or PREDICTORS.get(method or PRODUCTION_METHOD, predict_next_holt)
     preds: list[float] = []
     for _ in range(horizon):
         nxt = fn(y)
@@ -185,3 +190,25 @@ def forecast_horizon(y: np.ndarray, horizon: int, method: str) -> dict[str, list
     lower = [p - 1.96 * sd for p in preds]
     upper = [p + 1.96 * sd for p in preds]
     return {"forecast": preds, "forecast_lower": lower, "forecast_upper": upper}
+
+
+def get_production_smooth_days() -> int:
+    from khukra.disruption.forecast_tuning import load_forecast_config
+
+    return int(load_forecast_config().get("smooth_days", 9))
+
+
+def get_production_method() -> str:
+    from khukra.disruption.forecast_tuning import load_forecast_config
+
+    return str(load_forecast_config().get("production_method", PRODUCTION_METHOD))
+
+
+def get_production_predictor() -> PredictFn:
+    from khukra.disruption.forecast_tuning import build_predictor, load_forecast_config
+
+    cfg = load_forecast_config()
+    return build_predictor(
+        str(cfg.get("production_method", PRODUCTION_METHOD)),
+        cfg.get("mean_reversion"),
+    )

@@ -15,9 +15,15 @@ from khukra.disruption.cache import load_panel, repair_signal_dates, save_signal
 from khukra.disruption.catalog import DISRUPTION_SIGNALS, get_signal, hybrid_channel, list_signals
 from khukra.disruption.evaluation import (
     evaluate_forecast_precision,
+    evaluate_yesterday_forecast,
     latest_evaluation,
     load_evaluation_history,
     save_daily_evaluation,
+)
+from khukra.disruption.forecast_tuning import (
+    apply_recommended_config,
+    load_forecast_config,
+    optimize_forecast_mae,
 )
 from khukra.disruption.exploratory import run_advanced_exploration
 from khukra.disruption.hybrid_composite import decompose_hybrid_index
@@ -248,6 +254,41 @@ class DisruptionIntelligenceService:
         if panel.empty:
             raise ValueError("No cached disruption data. Run refresh first.")
         return decompose_hybrid_index(panel)
+
+    def yesterday_forecast_check(self, signal_ids: list[str] | None = None) -> dict[str, Any]:
+        """Latest 1-step forecast vs realized composite (yesterday → today)."""
+        panel = load_panel(signal_ids)
+        if panel.empty:
+            raise ValueError("No cached disruption data. Run refresh first.")
+        return evaluate_yesterday_forecast(panel)
+
+    def forecast_optimization(self, signal_ids: list[str] | None = None) -> dict[str, Any]:
+        panel = load_panel(signal_ids)
+        if panel.empty:
+            raise ValueError("No cached disruption data. Run refresh first.")
+        result = optimize_forecast_mae(panel)
+        result["active_config"] = load_forecast_config()
+        return result
+
+    def apply_forecast_optimization(self, signal_ids: list[str] | None = None) -> dict[str, Any]:
+        panel = load_panel(signal_ids)
+        if panel.empty:
+            raise ValueError("No cached disruption data. Run refresh first.")
+        optimization = optimize_forecast_mae(panel)
+        if not optimization.get("beats_baseline"):
+            return {
+                "applied": False,
+                "optimization": optimization,
+                "active_config": load_forecast_config(),
+                "message": "Current settings are already optimal; no changes applied.",
+            }
+        config = apply_recommended_config(optimization)
+        return {
+            "applied": True,
+            "optimization": optimization,
+            "active_config": config,
+            "message": "Production forecast settings updated.",
+        }
 
     def evaluate(
         self,
