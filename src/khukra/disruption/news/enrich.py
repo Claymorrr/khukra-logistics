@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from khukra.disruption.news.entities import extract_entities
 from khukra.disruption.news.sentiment import score_sentiment
 
 
 def enrich_headline_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Attach VADER sentiment and tone-adjusted impact to a retained headline."""
+    """Attach VADER sentiment, entity tags, and tone-adjusted impact to a headline."""
     text = f"{row.get('title', '')}. {row.get('summary', '')}"
     sent = score_sentiment(text)
+    entities = extract_entities(text)
     base_impact = float(row.get("impact_score", row.get("stress_score", 0.0)))
     # Negative tone amplifies disruption impact; positive tone dampens slightly.
     tone_multiplier = 1.0
@@ -27,6 +29,7 @@ def enrich_headline_row(row: dict[str, Any]) -> dict[str, Any]:
         "sentiment_negative": sent.negative,
         "sentiment_neutral": sent.neutral,
         "sentiment_is_negative": sent.is_negative,
+        **entities.to_row_fields(),
         "impact_score": adjusted,
         "stress_score": adjusted,
     }

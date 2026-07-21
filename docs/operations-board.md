@@ -1,6 +1,6 @@
 # Khukra Operations Board
 
-**Last updated:** 2026-07-01
+**Last updated:** 2026-07-21
 
 Single tracker for suggestions, decisions, and work across **Khukra Finance**, **Khukra Physics**, and **Khukra**.  
 The chat is not the source of truth — **this file and the GitHub Project are**.
@@ -23,7 +23,7 @@ The chat is not the source of truth — **this file and the GitHub Project are**
 
 | ID | Item | Repo |
 |----|------|------|
-| — | _(none — pick from backlog)_ | — |
+| ops-016 | Event typing (strike, closure, cyber, …) | logistics |
 
 ---
 
@@ -37,11 +37,10 @@ The chat is not the source of truth — **this file and the GitHub Project are**
 
 ## Backlog — NLP roadmap (Logistics)
 
-High-ROI order: **ops-015 → ops-016 → ops-017 → ops-018**, then Phase 3–4.
+High-ROI order: **ops-016 → ops-017 → ops-018**, then Phase 3–4.
 
 | ID | Phase | Item | Repo |
 |----|-------|------|------|
-| ops-015 | 2 | NER + entity extraction (ports, canals, carriers) | logistics |
 | ops-016 | 2 | Event typing (strike, closure, cyber, …) | logistics |
 | ops-017 | 2 | Headline dedup (MinHash / embeddings) | logistics |
 | ops-018 | 2 | Aspect / logistics-targeted sentiment | logistics |
@@ -50,7 +49,8 @@ High-ROI order: **ops-015 → ops-016 → ops-017 → ops-018**, then Phase 3–
 | ops-021 | 4 | LLM event extraction + RAG analyst (optional) | logistics |
 | ops-022 | — | NLP validation via lead-lag vs macro signals | logistics |
 
-**Phase 1 (done):** ops-014 — RSS judgment → VADER → `news_stress` + `news_sentiment`.
+**Phase 1 (done):** ops-014 — RSS judgment → VADER → `news_stress` + `news_sentiment`.  
+**Phase 2 (partial):** ops-015 — gazetteer NER + entity-count signals.
 
 ---
 
@@ -81,6 +81,7 @@ High-ROI order: **ops-015 → ops-016 → ops-017 → ops-018**, then Phase 3–
 | ops-023 | Daily forecast precision scorecard (hybrid) | logistics |
 | ops-024 | GSCPI + logistics RSS + shipping basket | logistics |
 | ops-025 | Inverse-variance hybrid composite + news weight tune | logistics |
+| ops-015 | NER + entity extraction (gazetteer) + entity-count signals | logistics |
 
 ---
 
@@ -88,7 +89,7 @@ High-ROI order: **ops-015 → ops-016 → ops-017 → ops-018**, then Phase 3–
 
 | ID | Item | Repo |
 |----|------|------|
-| _empty — next tier: NLP validation (ops-015+) and GSCPI vintage tracking_ | | |
+| _empty — next tier: event typing (ops-016+) and GSCPI vintage tracking_ | | |
 
 ---
 

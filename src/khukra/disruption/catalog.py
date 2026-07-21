@@ -93,6 +93,38 @@ DISRUPTION_SIGNALS: tuple[DisruptionSignal, ...] = (
         "rss_sentiment",
         "Daily mean VADER compound polarity on retained headlines (−1 negative … +1 positive)",
     ),
+    DisruptionSignal(
+        "news_suez_mentions",
+        "News Suez / Red Sea mentions",
+        "news_intelligence",
+        "news",
+        "rss_entity_suez",
+        "Daily count of retained headlines mentioning Suez / Red Sea corridor entities",
+    ),
+    DisruptionSignal(
+        "news_panama_mentions",
+        "News Panama Canal mentions",
+        "news_intelligence",
+        "news",
+        "rss_entity_panama",
+        "Daily count of retained headlines mentioning Panama Canal entities",
+    ),
+    DisruptionSignal(
+        "news_carrier_mentions",
+        "News liner carrier mentions",
+        "news_intelligence",
+        "news",
+        "rss_entity_carrier",
+        "Daily count of retained headlines naming major liner carriers (Maersk, MSC, …)",
+    ),
+    DisruptionSignal(
+        "news_port_mentions",
+        "News major port mentions",
+        "news_intelligence",
+        "news",
+        "rss_entity_port",
+        "Daily count of retained headlines naming major ports (LA/LB, Shanghai, Rotterdam, …)",
+    ),
 )
 
 

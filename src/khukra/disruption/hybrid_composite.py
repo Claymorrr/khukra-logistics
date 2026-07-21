@@ -17,7 +17,16 @@ from khukra.disruption.bayesian import composite_posterior
 # Production smoothing — tuned on walk-forward precision (ops-025)
 COMPOSITE_SMOOTH_DAYS = 9
 
-SPARSE_SIGNALS = frozenset({"news_stress", "news_sentiment"})
+SPARSE_SIGNALS = frozenset(
+    {
+        "news_stress",
+        "news_sentiment",
+        "news_suez_mentions",
+        "news_panama_mentions",
+        "news_carrier_mentions",
+        "news_port_mentions",
+    }
+)
 
 # Default channel mix for precision mode (sum = 1.0)
 DEFAULT_CHANNEL_WEIGHTS: dict[str, float] = {

@@ -122,15 +122,15 @@
       "title": "[Logistics] NLP Phase 2 — NER + entity extraction on retained headlines",
       "body": "Tag ports, canals (Suez/Panama), carriers, countries, commodities on judgment-filtered headlines. Emit entity columns in headline cache and optional daily entity-count signals (e.g. news_suez_mentions). CPU-only; spaCy small or gazetteer + rules. Plugs into enrich.py after judgment.",
       "repo": "Claymorrr/khukra",
-      "status": "Backlog",
-      "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
+      "status": "Done",
+      "labels": ["ops", "logistics", "nlp", "news"]
     },
     {
       "id": "ops-016",
       "title": "[Logistics] NLP Phase 2 — Event typing (strike, closure, cyber, sanction, weather, bankruptcy)",
       "body": "Classify retained headlines into disruption event types to replace/augment regex channel matching in judgment.py. Enables structured event stream and type-specific daily signals. Start with rules + keyword patterns; optional zero-shot classifier later.",
       "repo": "Claymorrr/khukra",
-      "status": "Backlog",
+      "status": "Todo",
       "labels": ["ops", "logistics", "nlp", "news", "suggestion"]
     },
     {

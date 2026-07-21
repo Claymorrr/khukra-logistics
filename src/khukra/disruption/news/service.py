@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import time
 from datetime import datetime, timezone
@@ -14,12 +13,14 @@ from khukra.disruption.adapters.rss import fetch_feed
 from khukra.disruption.cache import normalize_signal_dates, save_signal
 from khukra.disruption.news.cache import load_headlines, save_headlines
 from khukra.disruption.news.enrich import enrich_headline_row
+from khukra.disruption.news.entities import ENTITY_COUNT_SIGNALS, extract_entities
 from khukra.disruption.news.feeds import FEEDS_BY_ID, NEWS_FEEDS
 from khukra.disruption.news.judgment import OBJECTIVE, judge_headline
 
 STRESS_SIGNAL_ID = "news_stress"
 SENTIMENT_SIGNAL_ID = "news_sentiment"
 SIGNAL_ID = STRESS_SIGNAL_ID
+ENTITY_SIGNAL_IDS = tuple(ENTITY_COUNT_SIGNALS.keys())
 
 HEADLINE_COLUMNS = [
     "link",
@@ -38,6 +39,13 @@ HEADLINE_COLUMNS = [
     "sentiment_negative",
     "sentiment_neutral",
     "sentiment_is_negative",
+    "entities_json",
+    "entity_ports",
+    "entity_canals",
+    "entity_carriers",
+    "entity_countries",
+    "entity_commodities",
+    "entity_count",
     "ingested_at",
 ]
 
@@ -130,14 +138,20 @@ def _prune_and_enrich_headlines(headlines: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _save_daily_signals(headlines: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _save_daily_signals(
+    headlines: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     stress = _build_daily_stress(headlines)
     sentiment = _build_daily_sentiment(headlines)
+    entity_counts = _build_daily_entity_counts(headlines)
     if not stress.empty:
         save_signal(STRESS_SIGNAL_ID, stress)
     if not sentiment.empty:
         save_signal(SENTIMENT_SIGNAL_ID, sentiment)
-    return stress, sentiment
+    for signal_id, series in entity_counts.items():
+        if not series.empty:
+            save_signal(signal_id, series)
+    return stress, sentiment, entity_counts
 
 
 def ingest_news_feeds() -> dict[str, Any]:
@@ -179,14 +193,20 @@ def ingest_news_feeds() -> dict[str, Any]:
         merged = _prune_and_enrich_headlines(merged)
         save_headlines(merged)
 
-    stress_daily, sentiment_daily = _save_daily_signals(merged)
+    stress_daily, sentiment_daily, entity_daily = _save_daily_signals(merged)
     negative_count = int(merged["sentiment_is_negative"].sum()) if "sentiment_is_negative" in merged.columns else 0
+    entity_headline_count = (
+        int((merged["entity_count"].fillna(0).astype(int) > 0).sum())
+        if not merged.empty and "entity_count" in merged.columns
+        else 0
+    )
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
 
     return {
         "signal_id": STRESS_SIGNAL_ID,
         "sentiment_signal_id": SENTIMENT_SIGNAL_ID,
+        "entity_signal_ids": list(ENTITY_SIGNAL_IDS),
         "objective": OBJECTIVE,
         "feeds_polled": len(NEWS_FEEDS),
         "entries_fetched": fetched,
@@ -195,8 +215,10 @@ def ingest_news_feeds() -> dict[str, Any]:
         "entries_retained": int(len(merged)),
         "headlines_total": int(len(merged)),
         "negative_headlines": negative_count,
+        "entity_headlines": entity_headline_count,
         "stress_days": int(len(stress_daily)),
         "sentiment_days": int(len(sentiment_daily)),
+        "entity_signal_days": {sid: int(len(series)) for sid, series in entity_daily.items()},
         "latency_ms": elapsed_ms,
         "errors": errors,
         "recent_headlines": _recent_headlines(merged, limit=20),
@@ -231,6 +253,52 @@ def _build_daily_sentiment(headlines: pd.DataFrame) -> pd.DataFrame:
     return daily.sort_values("date").reset_index(drop=True)
 
 
+def _headline_has_entity(row: pd.Series, entity_type: str, entity_id: str) -> bool:
+    """True if cached columns or live extraction contain the target entity."""
+    col_map = {
+        "port": "entity_ports",
+        "canal": "entity_canals",
+        "carrier": "entity_carriers",
+        "country": "entity_countries",
+        "commodity": "entity_commodities",
+    }
+    col = col_map.get(entity_type)
+    if col and col in row.index and pd.notna(row.get(col)) and str(row.get(col)).strip():
+        ids = {part.strip() for part in str(row[col]).split(",") if part.strip()}
+        if entity_id == "*":
+            return bool(ids)
+        return entity_id in ids
+
+    text = f"{row.get('title', '')}. {row.get('summary', '')}"
+    extracted = extract_entities(text)
+    if entity_id == "*":
+        return bool(extracted.ids_for(entity_type))
+    return extracted.has(entity_type, entity_id)
+
+
+def _build_daily_entity_counts(headlines: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Daily mention counts for chokepoint / carrier entity signals."""
+    empty = {sid: pd.DataFrame(columns=["date", "value"]) for sid in ENTITY_SIGNAL_IDS}
+    if headlines.empty:
+        return empty
+
+    work = headlines.copy()
+    work["published_at"] = pd.to_datetime(work["published_at"], utc=True)
+    work["date"] = work["published_at"].dt.floor("D")
+
+    out: dict[str, pd.DataFrame] = {}
+    for signal_id, (entity_type, entity_id) in ENTITY_COUNT_SIGNALS.items():
+        mask = work.apply(lambda row: _headline_has_entity(row, entity_type, entity_id), axis=1)
+        hits = work.loc[mask]
+        if hits.empty:
+            out[signal_id] = pd.DataFrame(columns=["date", "value"])
+            continue
+        daily = hits.groupby("date", as_index=False).size().rename(columns={"size": "value"})
+        daily["date"] = normalize_signal_dates(daily["date"])
+        out[signal_id] = daily.sort_values("date").reset_index(drop=True)
+    return out
+
+
 def _recent_headlines(headlines: pd.DataFrame, limit: int = 20) -> list[dict[str, Any]]:
     if headlines.empty:
         return []
@@ -252,6 +320,12 @@ def _recent_headlines(headlines: pd.DataFrame, limit: int = 20) -> list[dict[str
                 "judgment_rationale": str(row.get("judgment_rationale", "")),
                 "sentiment_compound": round(float(row.get("sentiment_compound", 0)), 3),
                 "sentiment_is_negative": bool(row.get("sentiment_is_negative", False)),
+                "entity_ports": str(row.get("entity_ports", "") or ""),
+                "entity_canals": str(row.get("entity_canals", "") or ""),
+                "entity_carriers": str(row.get("entity_carriers", "") or ""),
+                "entity_countries": str(row.get("entity_countries", "") or ""),
+                "entity_commodities": str(row.get("entity_commodities", "") or ""),
+                "entity_count": int(row.get("entity_count", 0) or 0),
             }
         )
     return out
@@ -260,27 +334,40 @@ def _recent_headlines(headlines: pd.DataFrame, limit: int = 20) -> list[dict[str
 def news_status() -> dict[str, Any]:
     raw = load_headlines()
     headlines = _prune_and_enrich_headlines(raw)
-    if len(headlines) != len(raw) or (
-        not headlines.empty and "sentiment_compound" not in raw.columns
-    ):
+    needs_rewrite = len(headlines) != len(raw) or (
+        not headlines.empty
+        and (
+            "sentiment_compound" not in raw.columns
+            or "entities_json" not in raw.columns
+        )
+    )
+    if needs_rewrite:
         save_headlines(headlines)
         _save_daily_signals(headlines)
     stress_daily = _build_daily_stress(headlines)
     sentiment_daily = _build_daily_sentiment(headlines)
+    entity_daily = _build_daily_entity_counts(headlines)
     impact_col = _impact_column(headlines) if not headlines.empty else "impact_score"
     negative_count = (
         int(headlines["sentiment_is_negative"].sum())
         if not headlines.empty and "sentiment_is_negative" in headlines.columns
         else 0
     )
+    entity_headline_count = (
+        int((headlines["entity_count"].fillna(0).astype(int) > 0).sum())
+        if not headlines.empty and "entity_count" in headlines.columns
+        else 0
+    )
     return {
         "signal_id": STRESS_SIGNAL_ID,
         "sentiment_signal_id": SENTIMENT_SIGNAL_ID,
+        "entity_signal_ids": list(ENTITY_SIGNAL_IDS),
         "objective": OBJECTIVE,
         "feeds": [{"feed_id": f.feed_id, "label": f.label, "url": f.url} for f in NEWS_FEEDS],
         "headlines_total": int(len(headlines)),
         "stress_headlines": int((headlines[impact_col] > 0).sum()) if not headlines.empty else 0,
         "negative_headlines": negative_count,
+        "entity_headlines": entity_headline_count,
         "first_date": str(stress_daily["date"].min().date()) if not stress_daily.empty else None,
         "last_date": str(stress_daily["date"].max().date()) if not stress_daily.empty else None,
         "sentiment_first_date": str(sentiment_daily["date"].min().date())
@@ -289,5 +376,6 @@ def news_status() -> dict[str, Any]:
         "sentiment_last_date": str(sentiment_daily["date"].max().date())
         if not sentiment_daily.empty
         else None,
+        "entity_signal_days": {sid: int(len(series)) for sid, series in entity_daily.items()},
         "recent_headlines": _recent_headlines(headlines, limit=15),
     }

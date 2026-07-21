@@ -40,6 +40,13 @@ def load_headlines() -> pd.DataFrame:
                 "sentiment_negative",
                 "sentiment_neutral",
                 "sentiment_is_negative",
+                "entities_json",
+                "entity_ports",
+                "entity_canals",
+                "entity_carriers",
+                "entity_countries",
+                "entity_commodities",
+                "entity_count",
                 "ingested_at",
             ]
         )
